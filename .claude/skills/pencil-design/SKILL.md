@@ -1,170 +1,175 @@
 ---
 name: pencil-design
 description: >
-  Create high-quality visual designs — websites, app screens, dashboards, slides, marketing
-  materials, social media graphics — using Pencil (.pen design files). Use this skill whenever the
-  user wants to create, generate, edit, or visualize any kind of UI design, mockup, wireframe,
-  layout, webpage, app screen, presentation slide, poster, banner, or marketing asset. Also use it
-  when the user says things like "design me a...", "make a visual for...", "create a mockup of...",
-  "what would X look like?", "add a screen", "edit the design", or wants to turn an idea into a
-  visual. Even if the user doesn't mention "Pencil" or "design tool" explicitly — if they want
-  something visual created or changed, this is the skill to use.
+  Create high-quality visual designs â€” websites, app screens, dashboards, slides, marketing materials, social media graphics â€” using the Pencil CLI tool. Use this skill whenever the user wants to create, generate, or visualize any kind of UI design, mockup, wireframe, layout, webpage, app screen, presentation slide, poster, banner, or marketing asset. Also use it when the user says things like "design me a...", "make a visual for...", "create a mockup of...", "what would X look like?", or wants to turn an idea into a visual. Even if the user doesn't mention "Pencil" or "design tool" explicitly â€” if they want something visual created, this is the skill to use.
 ---
 
 # Pencil Design
 
-Create and edit professional visual designs as `.pen` files. A `.pen` file is an **encrypted**,
-infinite-canvas document (nested object hierarchy: frames, text, icons, components/instances).
-This repo already has one: `desing.pen` at the project root (10 screens + 89 reusable components
-for the Guia/Metas product).
+Create professional visual designs from natural language descriptions using the Pencil CLI. Pencil is a headless design tool that generates `.pen` files (a structured JSON design format) and can export them as images.
 
-> **Driving Pencil in this repo = the Pencil MCP server**, not the CLI. The MCP tools
-> (`mcp__pencil__*`) are wired into the agent session and are the verified path. The standalone
-> `@pencil.dev/cli` is **not installed here** (`npx pencil` fails with "could not determine
-> executable"); treat it as the optional alternative documented at the bottom.
+## Setup
 
-All paths below are relative to the repo root (`C:\Users\Lucas Emiliano\Documents\VSCode\guia-goals`).
+Before designing, make sure the Pencil CLI is available.
 
----
+### Check installation
 
-## Run (agent path) — the MCP harness
-
-The "driver" is off-the-shelf: the `mcp__pencil__*` tools. There is **no script file** to run — the
-tool-call sequence below *is* the harness. Follow it in order.
-
-### 1. Load the schema (required first, once per conversation)
-
-```
-mcp__pencil__get_editor_state(include_schema: true)
+```bash
+which pencil || npx pencil version
 ```
 
-This returns: the active `.pen` file, current selection, the list of top-level screen frames and
-reusable components (with their IDs), **and the full `.pen` schema + design rules**. You cannot use
-any other Pencil tool correctly without the schema in context. After it's loaded once, subsequent
-reads may pass `include_schema: false`.
+If `pencil` is not found, install it:
 
-Verified output in this repo: active editor `desing.pen`; top-level frames include
-`s4yLg` Dashboard - Progress, `dUhvy` Metas Page, `MoUGA` Login Page, `W0bBr` Dashboard - Home,
-`F7HfnJ` Timeline Page, `lgTKG` Uptime Page; plus 89 components (`L:VSnC2` Button/Default,
-`L:pcGlv` Card, `L:hahxH` Progress, `L:PV1ln` Sidebar, …).
-
-### 2. Load task + style guidance before designing
-
-```
-mcp__pencil__get_guidelines()                                  # list available guides + styles
-mcp__pencil__get_guidelines(category: "guide", name: "<name>") # task-specific how-to
-mcp__pencil__get_guidelines(category: "style", name: "<name>") # visual archetype for inspiration
+```bash
+npm install -g @pencil.dev/cli
 ```
 
-Pick only the guide(s) relevant to the task. Don't load incompatible guides at once.
+If global install fails due to permissions, install locally instead:
 
-### 3. Inspect existing structure before editing
-
-```
-mcp__pencil__batch_get(...)        # read specific nodes / reusable components in detail
-mcp__pencil__get_variables(...)    # read design tokens (colors, spacing, type) before adding new ones
+```bash
+npm install @pencil.dev/cli
 ```
 
-Favor **copying existing screens/components and editing the copy** over generating from scratch —
-the repo has a full component library; reuse it via `ref` instances.
+Then run it via `npx pencil` (or `./node_modules/.bin/pencil`) instead of `pencil`.
+You can learn about the available commands via the `pencil --help` command.
 
-### 4. Make the design changes
+### Authentication
 
-```
-mcp__pencil__batch_design(script: "<small JS snippet>")
-```
+#### Pencil user
 
-`batch_design` runs a tiny JS snippet against the document using only these functions: `Insert`,
-`Copy`, `Update`, `Replace`, `Move`, `Delete`, `Generate` (images), `FindEmptySpace`. Key rules
-(full set comes back with the schema in step 1):
+To use the CLI, an authenticated user logged in to Pencil is required. First, check
+the current user configuration on the machine with the `pencil status` command.
 
-- Split work into **small, section-focused** calls. On error, the whole call reverts.
-- Persist values across calls with bare assignment (`myNode = Insert(...)`), **not** `const`/`let` —
-  each call has its own scope. The call returns a name→id map for the nodes you created.
-- Set a human-readable `name` on every node. Never set `id` (auto-generated).
-- New/copied/modified root frames carry `placeholder: true` until that frame is finished, then unset.
-- For new root content with no known position, start with `FindEmptySpace({width, height})` — never
-  overlap root objects or pick random coordinates.
-- Only screen frames + reusable components live directly under `document`. Never put loose
-  text/icons/buttons at the document root.
-- It's Pencil's own layout model, **not CSS/HTML** — no percentages, no `margin`, no
-  `alignItems: stretch/baseline`. Use `fill_container` / `fit_content` and flexbox `layout`.
+If not logged in, there are the following options:
 
-### 5. Verify the section you just changed
+- use `pencil signup --email you@example.com --username johndoe --name "John Doe"` command, to create a new user.
+- use `pencil login --email you@example.com [--code abc123]` to authenticate an existing or newly created user.
+- optionally, the `PENCIL_CLI_KEY` env var can also be used for authentication if its set in your session.
 
-```
-mcp__pencil__snapshot_layout(...)   # cheap: structural / sizing / overflow check
-mcp__pencil__get_screenshot(filePath: "<abs path to .pen>", nodeId: "<id>")   # visual fidelity
-```
+#### Claude Code agent
 
-Screenshots are **expensive** — take one only after a section is complete, on the **smallest
-meaningful node** (a section frame, not `document`). Use `nodeId: "document"` only when you truly
-need the whole canvas. Then actually look at it: layout not collapsed, content not clipped, contrast
-OK, alignment/spacing clean.
+The CLI needs auth to run its AI agent for which Claude Code is required. For that
+there needs to be an authenticated Claude Code user set in the system configuration
+either via env var or a user subscription.
 
-Verified in this repo: `get_screenshot(filePath: ".../desing.pen", nodeId: "P3FgpJ")` rendered the
-"Goal Row" component — a "Meta" label, an "Em Progresso" status, and a 75% progress bar.
+If none of these are available, tell the user what options they have and help them set one up.
 
-### Export
+### Staying up to date
 
-```
-mcp__pencil__export_nodes(...)   # export node(s) to image/asset output
+This skill stays in sync with the **Pencil CLI npm package** (`@pencil.dev/cli`). The published package includes `SKILL.md` at its root; the package version is the skill version.
+
+**Check for a newer CLI / skill**
+
+- Latest version on the registry: `npm view @pencil.dev/cli version`
+- Installed CLI: `pencil version`, or `npm list -g @pencil.dev/cli` (global) / `npm list @pencil.dev/cli` (project)
+
+**Upgrade the CLI**, then refresh your copied skill file (agents do not auto-update skill files you placed in config folders):
+
+```bash
+npm install -g @pencil.dev/cli
 ```
 
----
+**Where to copy the skill from after installing**
 
-## Setup / prerequisites
+- From a dependency tree: `node_modules/@pencil.dev/cli/SKILL.md` (path is the same for global and local installs; resolve from your project root or global `node_modules` prefix).
 
-Nothing to install for the MCP path — the Pencil MCP server is already connected to the agent
-session in this repo. If `get_editor_state` ever returns "no active editor," open `desing.pen` (or
-the target `.pen`) in the Pencil editor / pass `filePath` explicitly to the read tools.
+**Fetch the same file without cloning the repo** (mirrors the npm tarball; optional third-party CDNs):
 
----
+- `https://unpkg.com/@pencil.dev/cli@latest/SKILL.md`
+- `https://cdn.jsdelivr.net/npm/@pencil.dev/cli@latest/SKILL.md`
 
-## Gotchas (battle scars from this environment)
+Use `@latest` for the newest publish, or pin (e.g. `@0.2.4`) for a reproducible snapshot.
 
-- **`.pen` files are encrypted.** `Read`/`Grep`/`cat` on `desing.pen` return ~830 KB of opaque
-  bytes — useless and misleading. The **only** valid access is via `mcp__pencil__*` tools.
-- **The CLI is not installed here.** `which pencil` → nothing; `npx pencil version` → `npm error
-  could not determine executable to run`. Don't burn time on the CLI — use the MCP tools. (The
-  latest published CLI is `@pencil.dev/cli` `0.2.7` per `npm view`, if you ever do install it.)
-- **Schema first, every conversation.** Calling `batch_design`/`batch_get` before
-  `get_editor_state(include_schema: true)` means you're guessing at the format. Load it once up front.
-- **Don't think in CSS.** Properties that look like CSS (`margin`, `%`, `stretch`) are unsupported
-  and error. The schema returned in step 1 is the source of truth for every property.
-- **One screen at a time.** Don't leave multiple root frames half-built (unless fanning out with
-  sub-agents). Finish a `placeholder: true` frame, then unset the flag.
-- **Multiplayer / stale state.** The document can change under you (the user edits live). If a node
-  you remembered is missing or different, **re-read** with `batch_get`/`get_editor_state` — don't
-  recreate it and don't undo the user's changes.
-- **Screenshots cost tokens.** Prefer `snapshot_layout` for structure; reach for `get_screenshot`
-  only for color/type/alignment fidelity, on the smallest node that shows the issue.
+**If you donâ€™t know where skills live on this machine**
 
----
+Agents donâ€™t always get the skills directory from context. When the path isnâ€™t obvious:
 
-## Project fit (Guia / Metas)
+- **Ask the user** where their agent or IDE loads skills from, or where they want this skill installed.
+- **Check the productâ€™s docs** for â€œskillsâ€, â€œagent skillsâ€, or â€œpluginsâ€ â€” paths differ by tool and version.
+- You can still **use the skill content without installing**: fetch or open the **`SKILL.md` URL above** (unpkg/jsDelivr) in the session so guidance applies even when the on-disk path is unknown. For a persistent install, copy the fetched file into the path the user or docs specify.
 
-This repo is a Next.js + Tailwind + shadcn/ui app (see `CLAUDE.md`, `PRD.md`, `SPEC.md`). The
-`desing.pen` components mirror shadcn primitives (Button/*, Card, Tabs, Dialog, Table, Sidebar, …)
-and the product screens (Login, Dashboard, Metas, Nova Meta, Timeline, Uptime, Settings). When the
-user asks to design or change a screen, reuse those existing components/screens rather than
-inventing new visual language, so the design stays consistent with the implemented UI.
+**Typical skill locations** (confirm with your toolâ€™s current docs â€” layouts change):
 
----
+| Environment | Where to put `SKILL.md` |
+|-------------|-------------------------|
+| **Cursor** | Project: `.cursor/skills/pencil-design/SKILL.md`; user-level: under `~/.cursor/skills/` |
+| **Claude Code** | Often `.claude/skills/pencil-design/SKILL.md` or user-level under `~/.claude/` |
+| **OpenClaw** | Often `~/.openclaw/skills/`, workspace `.agents/skills/`, or paths in [OpenClaw skills docs](https://docs.openclaw.ai/skills/) â€” verify for the userâ€™s setup |
+| **Other agents (Codex, etc.)** | Use the directory your product uses for skills or prompts |
 
-## Alternative: the Pencil CLI (not installed in this repo)
+Example (adjust the destination path to match your agent):
 
-If a future environment has the standalone CLI instead of the MCP server, the package is
-`@pencil.dev/cli`. It generates `.pen` files and exports images, and runs its own AI agent (which
-itself needs an authenticated Claude Code user).
+```bash
+curl -fsSL "https://unpkg.com/@pencil.dev/cli@latest/SKILL.md" -o .cursor/skills/pencil-design/SKILL.md
+```
 
-- Install: `npm install -g @pencil.dev/cli` (or local `npm install @pencil.dev/cli` → `npx pencil`).
-- Discover commands: `pencil --help`.
-- Pencil auth: `pencil status`; then `pencil signup ...` / `pencil login --email you@example.com`,
-  or set `PENCIL_CLI_KEY` in the session.
-- Latest version: `npm view @pencil.dev/cli version` (was `0.2.7` when this skill was written).
-- Stay in sync: the published package ships its own `SKILL.md` at
-  `node_modules/@pencil.dev/cli/SKILL.md` (or `https://unpkg.com/@pencil.dev/cli@latest/SKILL.md`).
-  Re-copy it after upgrading — placed skill files don't auto-update.
+**When to check for an update**
 
-Prefer the MCP path above whenever the `mcp__pencil__*` tools are available; they are in this repo.
+- **Early in the session**, before the first Pencil design run (compare `npm view @pencil.dev/cli version` to the installed CLI), so you arenâ€™t following stale instructions.
+- **Again** if the user says they upgraded the CLI, or if behavior doesnâ€™t match this doc (flags, auth, timing).
+- **Not** before every single command â€” once per session is enough unless something changed or errors suggest a version mismatch.
+
+## Creating a Design
+
+The core command:
+
+```bash
+pencil --out <output.pen> --prompt "<design description>" --export <output.png> --export-scale 2
+```
+
+Key flags:
+- `--out, -o` â€” where to save the `.pen` file (required)
+- `--prompt, -p` â€” what to design (required)
+- `--prompt-file, -f` â€” attach an image or text file to send with the prompt (repeatable). Same idea as attaching reference images in the Pencil editor chat; not for loading the prompt text from a file.
+- `--export, -e` â€” export an image of the result
+- `--export-scale` â€” image resolution multiplier (use 2 for crisp output)
+- `--export-type` â€” format: `png` (default), `jpeg`, `webp`, `pdf`
+- `--in, -i` â€” start from an existing `.pen` file (for iteration)
+- `--model, -m` â€” Claude model to use (defaults to Opus)
+
+### Passing the Prompt
+
+Pass the user's request directly as the prompt â€” do not expand, or add detail beyond what the user actually said. The Pencil CLI has its own AI designer agent that handles creative decisions like layout structure, color palettes, typography, spacing, and content. Adding your own design specifics on top of the user's request will conflict with the CLI agent's own judgment and produce worse results.
+
+If the user says "make me a landing page for a coffee shop", the prompt should be exactly that â€” not a paragraph with hero sections, color palettes, and font choices you invented.
+
+### Timing Expectations
+
+Design generation is not instant â€” the CLI runs an AI agent that plans the layout, creates each element, and validates the result visually. Expect:
+
+- **Simple designs** (a card, a single component): 1-2 minutes
+- **Medium designs** (an app screen, a landing page section): 2-3 minutes
+- **Complex designs** (full landing page, detailed dashboard): 3-5+ minutes
+
+Let the user know upfront that generation will take a few minutes so they're not left wondering. Use a generous timeout (at least 600000ms / 10 minutes) when running the command.
+
+### Showing the Result
+
+After the command completes, read the exported image to show it to the user:
+
+```bash
+# The command exports to the path you specified
+pencil --out design.pen --prompt "..." --export design.png --export-scale 2
+```
+
+Then use the Read tool on the exported PNG â€” it will render visually since you're a multimodal model.
+
+Always show the image to the user after creating it. This is the whole point â€” they want to see the visual.
+
+## Iterating on a Design
+
+When the user wants changes to an existing design, use the `--in` flag to load the previous `.pen` file:
+
+```bash
+pencil --in design.pen --out design-v2.pen --prompt "Make the header larger and change the accent color to green" --export design-v2.png --export-scale 2
+```
+
+The agent will read the existing design and apply modifications rather than starting from scratch.
+
+For quick successive iterations, keep a consistent naming pattern:
+- `design.pen` â†’ `design-v2.pen` â†’ `design-v3.pen`
+- Or use a single file: `--in design.pen --out design.pen` (overwrites)
+
+## Working Directory
+
+Save design files in the user's current working directory or a subdirectory like `designs/`. Don't use temp directories â€” the user will want to find and iterate on these files later.
