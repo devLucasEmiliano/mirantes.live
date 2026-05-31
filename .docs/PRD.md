@@ -1,123 +1,230 @@
-# Especificação — Dashboard de Progresso de Projeto
+# PRD — Dashboard de Progresso de Projeto (GuiaGoals)
 
-Sistema para um desenvolvedor solo apresentar o progresso de um projeto a um cliente. O admin (você) cria e edita metas; o cliente apenas visualiza, com atualização em tempo real. Dedicado a um único cliente.
+> Documento de Requisitos de Produto. Define **o que** o sistema faz e **como deve se comportar**.
+> Decisões técnicas de implementação (schema detalhado, contratos de API, infraestrutura) ficam para o `SPEC.md`.
+
+---
 
 ## 1. Visão geral
+
+Sistema para um desenvolvedor solo apresentar o progresso de um projeto a um único cliente. O **admin** cria e edita conteúdo; o **cliente** apenas visualiza, com atualização em tempo real (sem refresh). Dedicado a um único cliente.
+
+Além do acompanhamento de metas, o produto inclui um subsistema de **monitoramento de serviços** (uptime/incidentes), **integração com GitHub** (commits) e uma **timeline unificada** de atividade.
 
 | Item | Decisão |
 |------|---------|
 | Stack base | Next.js (App Router) |
 | UI | shadcn/ui + Lucide (ícones) |
 | Banco principal | PostgreSQL (fonte de verdade) |
-| Realtime | Redis Pub/Sub + SSE |
+| Realtime | Redis (Pub/Sub) + SSE |
 | Autenticação | Email/senha |
 | Papéis | `admin` (edita) e `client` (somente leitura) |
-| Estrutura de metas | Hierárquica, 2+ níveis |
+| Estrutura de metas | Hierárquica, profundidade ilimitada |
 | Medição de progresso | Status + percentual + data prevista |
-| Progresso de meta-pai | Calculado a partir dos filhos |
-| Deleção | Soft delete (arquivar) |
+| Progresso de meta-pai | Calculado (média simples dos filhos) |
+| Deleção | Soft delete (arquivar), em cascata |
 | Notificações por email | Não |
-| Módulos extras | Painel-resumo + timeline de atividade |
+| Módulos | Visão Geral, Metas, Timeline, Monitoramento, Configurações |
 
-## 2. Arquitetura
+### Telas (menu)
+1. **Visão Geral** — painel-resumo do projeto (cards + atividade recente + status resumido).
+2. **Metas** — árvore hierárquica de metas.
+3. **Timeline** — feed cronológico unificado de atividade.
+4. **Monitoramento** — uptime, status de serviços, incidentes, latência.
+5. **Configurações** — área exclusiva do admin (serviços, GitHub, retenção).
 
-O fluxo segue: admin e cliente autenticam na aplicação Next.js. As escritas vão para o Postgres (fonte de verdade). Após cada escrita, a aplicação publica um evento no Redis. Um canal SSE inscrito no Redis empurra o evento para o navegador do cliente, que reflete a mudança sem refresh.
+---
 
-Por que Redis não é o banco principal: Redis é volátil e não oferece garantias relacionais (integridade referencial, transações, queries hierárquicas). Para um histórico de metas que precisa sobreviver a reinícios e manter relações pai/filho, Postgres é o lugar certo. Redis fica com o papel que faz bem: mensageria de baixa latência para o realtime e cache opcional.
+## 2. Papéis e visibilidade
 
-## 3. Modelo de dados
+- **admin** (você): cria/edita/arquiva metas, configura serviços monitorados e repositórios, marca visibilidade de eventos, gerencia retenção. Vê tudo.
+- **client** (cliente único): somente leitura. Vê Visão Geral, Metas, Timeline e Monitoramento. **Não** vê a tela de Configurações nem nenhum dado de configuração.
+- **Sem cadastro público.** A conta do cliente é provisionada pelo admin (seed/script). Não há conceito de múltiplos "membros do projeto".
 
-### users
-- `id` (uuid, PK)
-- `email` (text, único)
-- `password_hash` (text) — argon2id/bcrypt
-- `role` (enum: `admin` | `client`)
-- `created_at` (timestamptz)
+---
 
-### goals
-Estrutura em árvore via auto-referência (`parent_id`).
-- `id` (uuid, PK)
-- `parent_id` (uuid, FK → goals.id, nullable) — null = meta de topo
-- `title` (text)
-- `description` (text, nullable)
-- `status` (enum: `todo` | `in_progress` | `done`)
-- `progress` (int, 0–100) — ver regra de cálculo abaixo
-- `due_date` (date, nullable)
-- `position` (int) — ordenação manual entre irmãos
-- `deleted_at` (timestamptz, nullable) — soft delete: registros com valor não-nulo são tratados como arquivados e ocultados das consultas padrão
-- `created_at`, `updated_at` (timestamptz)
+## 3. Autenticação e sessão
 
-### goal_events
-Histórico/auditoria de mudanças. Alimenta a timeline de atividade.
-- `id` (uuid, PK)
-- `goal_id` (uuid, FK → goals.id)
-- `event_type` (enum: `created` | `updated` | `status_changed` | `archived`)
-- `payload` (jsonb) — diff do que mudou
-- `created_at` (timestamptz)
+- Sessão via cookie `httpOnly` + token.
+- Senhas com hash **argon2id** (ou bcrypt).
+- Middleware do Next protege rotas: `/dashboard` exige sessão; mutações exigem `role = admin`.
+- **Duração da sessão:** 7 dias, **sliding** (renova a cada uso).
+- **Troca de senha:** existe fluxo de **troca de senha para usuário logado** (senha atual → nova senha). Não há fluxo público de "esqueci minha senha" / reset por email.
+- **Rate limiting** em `/api/auth/login` (proteção contra brute force — limite de tentativas por IP/janela de tempo).
+- Sem fluxo público de cadastro (reduz superfície de ataque).
 
-Notas de modelagem:
-- Hierarquia com `parent_id` cobre 2+ níveis. Para árvores profundas e queries de subárvore eficientes, considere a extensão `ltree` ou um campo `path` materializado mais adiante.
-- **Progresso da meta-pai é calculado** a partir dos filhos (não armazenado como valor manual independente). Metas-folha têm progresso definido manualmente; metas com filhos derivam o percentual da agregação dos filhos. Ver seção 8.
+---
 
-## 4. Autenticação e autorização
+## 4. Metas
 
-- Sessão via cookie httpOnly + token.
-- Senhas com hash argon2id (ou bcrypt).
-- Middleware no Next protege rotas: `/dashboard` exige sessão; mutações (criar/editar/arquivar meta) exigem `role = admin`.
-- Como só você cria contas, **não há fluxo público de cadastro** — o usuário do cliente é provisionado por você (seed/script). Isso reduz superfície de ataque.
+### 4.1 Estrutura
+- Hierarquia com **profundidade ilimitada** (meta → sub → sub-sub → …).
+- Cada meta tem: título, status, progresso (0–100), **data prevista (`due_date`) obrigatória**, posição (ordenação) e estado de arquivamento.
 
-## 5. API (App Router / Route Handlers)
+### 4.2 Status
+Valores canônicos: `todo` (a fazer) · `in_progress` (em andamento) · `done` (concluído).
+Rótulos em PT exibidos na UI: "A Fazer" / "Em Progresso" / "Concluído".
 
-| Método | Rota | Permissão | Função |
-|--------|------|-----------|--------|
-| POST | `/api/auth/login` | público | autentica e cria sessão |
-| POST | `/api/auth/logout` | autenticado | encerra sessão |
-| GET | `/api/goals` | autenticado | árvore de metas (exclui arquivadas) |
-| POST | `/api/goals` | admin | cria meta |
-| PATCH | `/api/goals/:id` | admin | edita meta (status, %, data, título) |
-| DELETE | `/api/goals/:id` | admin | arquiva meta (soft delete) |
-| GET | `/api/summary` | autenticado | dados do painel-resumo |
-| GET | `/api/events` | autenticado | timeline de atividade |
-| GET | `/api/stream` | autenticado | canal SSE de eventos |
+### 4.3 Progresso e derivação (folha vs. pai)
+- **Meta-folha** (sem filhos): progresso (0–100) e status definidos **manualmente** pelo admin.
+- **Meta-pai** (com filhos):
+  - **Progresso** = **média simples** dos progressos dos filhos.
+  - **Status** = **derivado automaticamente**:
+    - todos os filhos `done` → pai `done`;
+    - todos os filhos `todo` → pai `todo`;
+    - qualquer outra combinação (algum `in_progress`, ou mistura de `done`/`todo`) → pai `in_progress`.
+  - Progresso e status do pai são **read-only** na UI (não editáveis enquanto houver filhos).
+- O cálculo é feito sob demanda na leitura (recursivo na árvore) — suficiente para a escala de um cliente único.
 
-Toda mutação bem-sucedida: grava no Postgres → registra em `goal_events` → publica em canal Redis `goals:updates` → SSE entrega aos conectados.
+### 4.4 Arquivamento (soft delete)
+- Arquivar é soft delete (`deleted_at`), nunca deleção permanente.
+- Arquivar uma meta-pai **arquiva os filhos em cascata**.
+- Metas arquivadas são excluídas da árvore, dos cálculos e das contagens.
 
-## 6. Realtime
+### 4.5 Atraso
+- Uma meta está **atrasada** quando `due_date` está no passado **e** `status ≠ done`.
 
-- Endpoint SSE (`/api/stream`) mantém conexão aberta e repassa eventos do Redis.
-- Cliente usa `EventSource` no front; ao receber evento, invalida/atualiza o cache local (React Query/SWR) ou aplica o patch direto.
-- SSE é mais simples que WebSocket e suficiente para fluxo unidirecional (servidor → cliente). Só troque por WebSocket se precisar de comunicação bidirecional no futuro.
-- Como você roda em VPS com Docker (runtime Node de longa duração), SSE funciona sem as restrições de serverless. Garanta apenas que o proxy reverso não derrube conexões longas (`proxy_buffering off`, timeouts altos).
+### 4.6 Ordenação
+- Metas têm campo de **posição** para ordenação manual entre irmãos.
 
-## 7. Frontend
+---
 
-- `/login` — formulário email/senha.
-- `/dashboard` — painel-resumo no topo + árvore de metas abaixo. Visão do cliente é read-only; visão do admin mostra controles de edição inline.
-- Componentes (shadcn/ui + Lucide): árvore expansível, barra/anel de progresso por meta, badge de status, data prevista com destaque para atrasadas, cards de resumo, lista de timeline.
-- Estado de servidor com React Query ou SWR (encaixa bem com SSE para invalidação).
+## 5. Visão Geral (painel-resumo)
 
-### Painel-resumo (topo do dashboard)
-Visão geral rápida para o cliente, derivada de `/api/summary`:
-- Progresso total do projeto (agregado das metas de topo).
-- Contagem por status (a fazer / em andamento / concluído).
-- Metas atrasadas (due_date passada e status ≠ done).
+Quatro cards no topo, derivados automaticamente:
 
-### Timeline de atividade
-Lista cronológica alimentada por `goal_events` (via `/api/events`): mostra o que mudou e quando (ex: "Meta X concluída", "Meta Y criada"). Dá ao cliente a sensação de evolução contínua sem precisar comparar estados manualmente.
+1. **Total de Metas** — contagem de metas **ativas** (exclui arquivadas).
+2. **Saúde do Projeto** (0–100%) — fórmula composta:
+   `Saúde = 0.50·Progresso + 0.30·Pontualidade + 0.20·Uptime`
+   - **Progresso** = progresso agregado do projeto (média das metas de topo).
+   - **Pontualidade** = % de metas ativas **não atrasadas**.
+   - **Uptime** = uptime médio dos serviços monitorados (janela corrente).
+3. **Commits Semanais** — total de commits dos repositórios na janela de 7 dias, com **variação % vs. semana anterior**.
+4. **Tempo Médio** — média de dias entre criação e conclusão (`completed_at − created_at`) das metas concluídas.
 
-## 8. Cálculo de progresso
+A Visão Geral também resume status dos serviços e atividade recente (subconjunto da Timeline).
 
-- **Meta-folha** (sem filhos): `progress` é definido manualmente pelo admin (0–100).
-- **Meta-pai** (com filhos): `progress` é calculado como a média dos filhos. Recomendo começar com média simples; se quiser refinar depois, dá para introduzir peso por filho.
-- O cálculo pode ser feito sob demanda na leitura (recursivo na árvore) ou materializado em coluna e recalculado a cada mutação de filho. Para a escala de um cliente único, calcular na leitura é mais simples e suficiente.
-- `status` da meta-pai pode seguir a mesma lógica de derivação (ex.: todos os filhos `done` → pai `done`; algum `in_progress` → pai `in_progress`), ou ser mantido manual. Decisão de implementação fica em aberto.
+---
 
-## 9. O que faltava no fluxo original (lacunas preenchidas)
+## 6. Timeline de atividade
 
-1. **Papel do Redis** — era banco principal no diagrama; foi reposicionado como Pub/Sub + cache, com Postgres como fonte de verdade.
-2. **Autorização por papel** — o fluxo não distinguia quem pode editar; adicionado `admin` vs `client`.
-3. **Arquivamento e ordenação** de metas — não previstos; incluídos (soft delete via `deleted_at` + `position`).
-4. **Histórico/timeline** — `goal_events` alimenta a timeline de atividade visível ao cliente.
-5. **Painel-resumo** — visão agregada (progresso total, metas atrasadas) no topo do dashboard.
-6. **Cálculo de progresso de metas-pai** — definido como agregação automática dos filhos.
-7. **Camada de transporte realtime** — o "sem refresh" exigia mecanismo concreto; definido SSE.
+- **Feed unificado**: eventos de **metas** + **commits** + **incidentes de monitoramento**, numa única coleção de eventos.
+- Cada evento registra origem (`source`: goal / commit / incident), tipo, descrição e timestamp.
+- **Visibilidade controlada pelo admin**: cada evento tem flag de visibilidade ao cliente.
+  - Eventos automáticos (commits, incidentes) entram **visíveis por padrão**; o admin pode **ocultar** caso a caso.
+- **Retenção configurável** (default sugerido 90 dias): job periódico remove eventos além da janela.
+- Dentro da janela: paginação por scroll/cursor (últimos N + "ver mais").
+
+---
+
+## 7. Monitoramento de serviços ("Uptime Kuma simplificado")
+
+Subsistema embutido com **worker de polling** próprio na aplicação (runtime Node de longa duração em VPS/Docker).
+
+### 7.1 Tipos de check
+- **HTTP/HTTPS**: faz request a uma URL. Os status codes que contam como "Online" são **configuráveis por serviço**.
+- **Docker**: verifica via socket/API do Docker se o container está em execução (`running`).
+
+### 7.2 Estados
+Três estados por serviço: **Online · Degradado · Offline**.
+- **Degradado** = respondeu, mas latência **acima de um threshold configurável por serviço**.
+- **Offline** = check falhou (HTTP fora dos status OK / container não running / sem resposta).
+
+### 7.3 Polling
+- **Intervalo de checagem configurável por serviço**.
+- Cada checagem **grava uma linha** de resultado (timestamp, estado, latência). O uptime % é calculado pela razão de checks OK sobre o total na janela.
+
+### 7.4 Incidentes
+- **Automáticos**: o sistema abre incidente **após N falhas seguidas** (N configurável — anti-flapping) e o encerra quando o serviço volta, registrando início, fim e duração.
+- **Manuais**: o admin pode registrar incidente à mão (botão "Registrar Incidente").
+- Mudanças de estado de serviço e abertura/fechamento de incidente **publicam evento realtime** (Redis → SSE) e entram na Timeline.
+
+### 7.5 Métricas exibidas
+- Uptime por serviço e geral (mensal / últimos 30 dias).
+- Tempo de resposta médio (geral e por endpoint).
+- Lista de incidentes recentes com duração.
+
+> **Docker socket inacessível:** tratado como **Offline** (conta como downtime).
+
+---
+
+## 8. Integração GitHub (commits)
+
+- Provedor: **GitHub**.
+- Captura por **polling da API** (intervalo configurável).
+- **Múltiplos repositórios** configuráveis para o projeto.
+- Autenticação por **Personal Access Token (PAT)** armazenado como **segredo de servidor** (nunca exposto ao cliente nem em URL).
+- Alimenta o card "Commits Semanais" e gera eventos `commit` na Timeline.
+
+---
+
+## 9. Configurações (admin-only)
+
+Tela exclusiva do admin (cliente não acessa nem vê). Contém:
+- **Serviços monitorados**: adicionar/editar/remover; tipo de check (HTTP/Docker), URL/container, status codes OK, threshold de latência, intervalo de polling, N falhas para incidente.
+- **GitHub**: PAT, lista de repositórios, intervalo de polling.
+- **Retenção da Timeline**: janela em dias (configurável).
+- **Conta**: troca de senha do usuário logado.
+
+---
+
+## 10. Realtime
+
+- Escrita → Postgres (fonte de verdade) → registra evento → publica em canal Redis → **SSE** entrega aos conectados.
+- **SSE** (não WebSocket): fluxo unidirecional servidor → cliente é suficiente.
+- **Reconexão robusta**: `EventSource` reconecta automaticamente; uso de **`Last-Event-ID`** para reenviar eventos perdidos durante a queda; **heartbeat/keep-alive** para manter a conexão viva atrás do proxy reverso (`proxy_buffering off`, timeouts altos).
+- Cliente invalida/atualiza cache local (React Query/SWR) ao receber evento, ou aplica patch direto.
+
+---
+
+## 11. Eventos que disparam realtime + Timeline
+
+| Origem | Exemplos de evento |
+|--------|--------------------|
+| Metas | criada, editada (status/%/data/título), arquivada, concluída |
+| Commits | novos commits detectados por repositório |
+| Monitoramento | serviço mudou de estado, incidente aberto/fechado |
+
+Todos passam por: grava no Postgres → registra evento → publica no Redis → SSE entrega.
+
+---
+
+## 12. Decisões registradas (resumo)
+
+| Tema | Decisão |
+|------|---------|
+| Monitoramento no MVP | Sim, embutido (HTTP + Docker) |
+| Estados de serviço | Online / Degradado / Offline |
+| Threshold de degradado | Latência, por serviço |
+| Status OK (HTTP) | Configurável por serviço |
+| Intervalo de polling | Por serviço |
+| Histórico de uptime | Uma linha por check |
+| Incidente automático | Após N falhas seguidas (default 3) + manual |
+| Docker socket inacessível | Offline (conta downtime) |
+| Commits | GitHub real, polling, múltiplos repos, PAT no servidor |
+| Saúde do projeto | 0.5 progresso / 0.3 pontualidade / 0.2 uptime |
+| Tempo médio | Calculado (criação→conclusão) |
+| Total de metas | Só ativas |
+| Profundidade de metas | Ilimitada |
+| Status do pai | Derivado automaticamente |
+| Progresso/status do pai | Read-only com filhos |
+| Arquivar pai | Cascata |
+| due_date | Obrigatória |
+| Timeline | Feed unificado, retenção configurável |
+| Membros | Não existem (cliente único) |
+| Visibilidade de evento | Admin marca; automáticos visíveis por padrão |
+| Sessão | 7 dias, sliding |
+| Senha | Troca logado, sem reset público |
+| Login | Com rate limiting |
+| SSE | Reconexão + Last-Event-ID + heartbeat |
+
+---
+
+## 13. Defaults e parâmetros
+
+- **Docker socket inacessível:** Offline (conta como downtime).
+- **Intervalo de polling padrão:** 60s (configurável por serviço).
+- **N falhas para abrir incidente:** 3 (configurável).
+- **Threshold de latência para "Degradado":** 1000ms (configurável por serviço).
+- **Retenção da Timeline:** 90 dias (configurável).
+- Schema canônico (tabelas `users`, `sessions`, `goals`, `events`, `services`, `service_checks`, `incidents`, `repos`, `commits`) detalhado no `SPEC.md`.
