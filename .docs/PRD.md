@@ -228,3 +228,13 @@ Todos passam por: grava no Postgres → registra evento → publica no Redis →
 - **Threshold de latência para "Degradado":** 1000ms (configurável por serviço).
 - **Retenção da Timeline:** 90 dias (configurável).
 - Schema canônico (tabelas `users`, `sessions`, `goals`, `events`, `services`, `service_checks`, `incidents`, `repos`, `commits`) detalhado no `SPEC.md`.
+
+flowchart TD
+    A[Pagina de Progresso] -->|Login| B(Dashboard)
+    C[Criaçao de Metas]
+    C --> D[Update de Metas]
+    D --> E[Edit de Metas]
+    E --> D --> C
+    C --> B
+    A --> |Redis| F[Banco de Dados] --> B --> F
+    F <--> G[GitHub]

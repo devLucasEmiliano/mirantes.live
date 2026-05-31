@@ -9452,12 +9452,12 @@
     {
       "type": "frame",
       "id": "W0bBr",
-      "x": 678,
+      "x": 684.6666666666667,
       "y": -4647,
       "name": "Dashboard - Home",
       "clip": true,
-      "width": 1440,
-      "height": 1080,
+      "width": 1427,
+      "height": 1070,
       "fill": "$surface-primary",
       "children": [
         {
