@@ -1,6 +1,6 @@
 # CLAUDE.md
-
-Regras de operação para este repositório. Este arquivo governa **como** qualquer agente (Claude) deve trabalhar aqui. Leia por completo antes de qualquer ação.
+@AGENTS.md
+Regras de operação para este repositório. Este arquivo governa **como** qualquer agente (Claude) deve trabalhar aqui. Leia por completo antes de qualquer ação. 
 
 ---
 
