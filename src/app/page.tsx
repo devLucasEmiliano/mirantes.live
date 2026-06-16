@@ -4,19 +4,32 @@ import { ProgressRing } from "@/components/shared/progress-ring";
 import { StatCard } from "@/components/shared/stat-card";
 import { TimelineFeed } from "@/components/shared/timeline-feed";
 import { UptimePanel } from "@/components/shared/uptime-panel";
+import { readHomeSnapshot } from "@/lib/home-snapshot";
 import { mockEvents, mockGoals, mockSummary } from "@/lib/mock-data";
+
+// A home é servida a partir do snapshot público no Redis (SPEC §1/§4); o Postgres
+// segue sendo a fonte de verdade do negócio. force-dynamic: lê o Redis a cada
+// request (apagar a chave → fallback; re-seed → restaura). Os cards/listas abaixo
+// ainda são mock — serão substituídos pelas suas próprias specs.
+export const dynamic = "force-dynamic";
 
 /**
  * Home pública: visão geral do projeto sem sidebar (PRD — página de
  * progresso visível antes do login).
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const snapshot = await readHomeSnapshot();
   const { totalGoals, completedGoals, inProgressGoals } = mockSummary;
   const todoGoals = totalGoals - completedGoals - inProgressGoals;
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-surface-primary">
-      <PublicHeader />
+      <PublicHeader
+        projectName={snapshot.projectName}
+        tagline={snapshot.tagline}
+        live={snapshot.live}
+        updatedAt={snapshot.updatedAt}
+      />
 
       <div className="flex gap-5 px-10 py-6">
         <StatCard title="Total de Metas">

@@ -11,12 +11,16 @@ import {
   UptimeMonitoringCard,
 } from "@/components/configuracoes/tools-cards";
 import { AppHeader } from "@/components/layout/app-header";
+import { requireAdmin } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Configurações — GuiaGoals",
 };
 
-export default function ConfiguracoesPage() {
+export default async function ConfiguracoesPage() {
+  // Tela exclusiva do admin (PRD §2/§9). Cliente é redirecionado ao dashboard.
+  await requireAdmin();
+
   return (
     <>
       <AppHeader title="Configurações" breadcrumb="Dashboard / Configurações" />

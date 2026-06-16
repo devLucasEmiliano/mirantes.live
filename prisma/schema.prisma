@@ -1,0 +1,38 @@
+// Schema Prisma — só as 2 tabelas que a task 003 precisa (auth). As demais do
+// SPEC §2 (goals/events/services/…) ficam para specs próprias.
+//
+// Gerador legado `prisma-client-js`: client no caminho padrão, importado de
+// `@prisma/client`. No Prisma 7 o client EXIGE um driver adapter em runtime
+// (ver src/lib/db.ts → @prisma/adapter-pg) e a URL de conexão p/ a CLI (migrate)
+// mora em `prisma.config.ts` — não mais no bloco datasource.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Usuário do sistema. Sem cadastro público — provisionado por seed (PRD §2).
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash") // argon2id
+  role         String // 'admin' | 'client'
+  createdAt    DateTime  @default(now()) @map("created_at")
+  sessions     Session[]
+
+  @@map("users")
+}
+
+/// Sessão por banco. O `id` é o token que vai (assinado) no cookie httpOnly.
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at") // sliding 7d
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("sessions")
+}

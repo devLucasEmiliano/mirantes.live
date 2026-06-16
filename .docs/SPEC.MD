@@ -22,6 +22,13 @@
 
 Os workers podem rodar no mesmo container (processo Node com schedulers) ou separados; isolam-se da request/response do usuário.
 
+### Home pública (snapshot no Redis)
+A home `/` (pública, pré-login) é servida de um **snapshot público no Redis** (chave
+`home:snapshot`): nome do projeto, tagline, flag "no ar" e timestamp. É **cache opcional**
+— o **Postgres permanece a fonte de verdade** do negócio. O snapshot é gravado pelo seed
+(`writeHomeSnapshot()`); se a chave faltar ou o Redis cair, a página cai num **fallback**
+estático. O conteúdo do snapshot é não sensível.
+
 ---
 
 ## 2. Modelo de dados (PostgreSQL)
@@ -160,6 +167,10 @@ Os workers podem rodar no mesmo container (processo Node com schedulers) ou sepa
 **Regra transversal de mutação:** grava no Postgres (transação) → insere em `events` → `PUBLISH goals:updates {event}` no Redis → SSE entrega.
 
 **Filtro de visibilidade:** endpoints de leitura para `role=client` aplicam `visible_to_client = true` e nunca expõem dados de `/api/settings`, `/api/services`, `/api/repos`.
+
+**Home pública (`/`):** Server Component que lê o snapshot do Redis (`readHomeSnapshot()`,
+chave `home:snapshot`) — **não** é Route Handler. `force-dynamic` (lê o Redis a cada
+request); fallback estático se ausente. O Postgres permanece a fonte de verdade.
 
 ---
 
