@@ -140,7 +140,7 @@ export function ProjectCard() {
         <span className="flex items-center gap-2.5">
           <ChevronDown className="size-3.5 text-foreground-inverse" />
           <span className="text-sm font-semibold text-foreground-inverse">
-            GuiaGoals Dashboard
+            Mirantes.Live Dashboard
           </span>
         </span>
         <span className="rounded-full bg-white/20 px-2 py-0.5 font-body text-[11px] text-foreground-inverse">
@@ -150,10 +150,13 @@ export function ProjectCard() {
 
       <div className="flex flex-col gap-5 px-6 py-5">
         <div className="flex gap-4">
-          <ReadOnlyField label="Nome do Projeto" value="GuiaGoals Dashboard" />
+          <ReadOnlyField
+            label="Nome do Projeto"
+            value="Mirantes.Live Dashboard"
+          />
           <ReadOnlyField
             label="Repositório GitHub"
-            value="devlucasemiliano/guia-goals"
+            value="devlucasemiliano/mirantes.live"
             icon={<GitBranch className="size-4 text-foreground-muted" />}
           />
         </div>

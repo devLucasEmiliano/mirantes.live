@@ -24,7 +24,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GuiaGoals",
+  title: "Mirantes.Live",
   description: "Dashboard de progresso de projeto",
 };
 

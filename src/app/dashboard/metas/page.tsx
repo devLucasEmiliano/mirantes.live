@@ -4,7 +4,7 @@ import { MetasView } from "@/components/metas/metas-view";
 import { mockGoals } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
-  title: "Metas — GuiaGoals",
+  title: "Metas — Mirantes.Live",
 };
 
 export default function MetasPage() {

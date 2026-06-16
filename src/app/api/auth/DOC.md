@@ -8,9 +8,10 @@ trocar a senha do usuário logado. Cookies só podem ser escritos aqui (Route Ha
 Um `route.ts` por endpoint, em subpastas (`login/`, `logout/`, `password/`).
 
 ## Arquivos
-- **`login/route.ts`** — `POST`: rate-limit por IP → valida `{email,password}` (zod) →
-  busca usuário → `verifyPassword` → `createSession` (cookie assinado) → `200 {role}`.
-  `401` em credencial inválida, `429` em excesso de tentativas, `400` em corpo inválido.
+- **`login/route.ts`** — `POST`: rate-limit por **IP e por email** → valida
+  `{email,password}` (zod) → busca usuário → `verifyPassword` → `createSession` (cookie
+  assinado) → `200 {role}` (zera os contadores). `401` em credencial inválida, `429` em
+  excesso (qualquer dimensão), `400` em corpo inválido.
 - **`logout/route.ts`** — `POST`: `destroySession()` (apaga linha + limpa cookie) → `200`. Idempotente.
 - **`password/route.ts`** — `POST` (autenticado): valida `{currentPassword,newPassword}`
   → confere senha atual → regrava hash e invalida as **outras** sessões (transação) →

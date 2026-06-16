@@ -19,8 +19,10 @@ Quatro módulos, sem subpastas. `cookie.ts` é **puro** (usável no `proxy.ts`);
   `sessions` + grava cookie), `getCurrentUser` (assinatura → banco → expiração →
   sliding de `expires_at`), `destroySession` (logout), `requireUser`, `requireAdmin`
   (redirecionam). Fonte de verdade da identidade.
-- **`rate-limit.ts`** — `checkLoginRateLimit(ip)` com `INCR`+`EXPIRE` no Redis
-  (`ratelimit:login:{ip}`, 5/15min → 429). Fail-open se o Redis cair.
+- **`rate-limit.ts`** — `checkLoginRateLimit(identifier)` + `clearLoginRateLimit` com
+  `INCR`/`EXPIRE`/`DEL` no Redis (`ratelimit:login:<id>`, 5/15min → 429). O login aplica
+  em duas dimensões — `ip:<ip>` e `email:<email>` (esta imune a IP forjado). Fail-open se
+  o Redis cair.
 
 ## O que NÃO vai aqui
 - **`cookie.ts` não pode importar `next/headers`** — precisa rodar no proxy. Setar/limpar

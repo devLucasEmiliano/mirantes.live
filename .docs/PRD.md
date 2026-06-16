@@ -1,4 +1,4 @@
-# PRD — Dashboard de Progresso de Projeto (GuiaGoals)
+# PRD — Dashboard de Progresso de Projeto (Mirantes.Live)
 
 > Documento de Requisitos de Produto. Define **o que** o sistema faz e **como deve se comportar**.
 > Decisões técnicas de implementação (schema detalhado, contratos de API, infraestrutura) ficam para o `SPEC.md`.

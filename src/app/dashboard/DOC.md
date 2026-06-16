@@ -1,0 +1,24 @@
+# src/app/dashboard
+
+## Propósito
+Área autenticada do app. O `layout.tsx` é o shell (sidebar + main) **e** o portão de sessão;
+as páginas/subrotas são as telas do produto. Só acessível com sessão válida (proxy + DAL).
+
+## Estrutura
+- `layout.tsx` — shell + guarda de sessão (DAL).
+- `page.tsx` — Visão Geral (cards + atividade + uptime; ainda mock).
+- `metas/`, `timeline/`, `monitoramento/` — telas do produto (mock por enquanto).
+- `configuracoes/` — área exclusiva do admin. Ver `configuracoes/DOC.md`.
+
+## Arquivos
+- **`layout.tsx`** (Server Component, `async`) — resolve o usuário via `getCurrentUser()`
+  (DAL, verificação real no banco); sem sessão → `redirect('/login')`. Passa o DTO
+  `{email, role}` ao `Sidebar`. O `proxy.ts` faz só o gate ótimista por assinatura — a
+  checagem autoritativa é aqui.
+- **`page.tsx`** — Visão Geral; dados ainda do mock (`@/lib/mock-data`).
+
+## O que NÃO vai aqui
+- **Sem checagem de papel "solta" no layout** — o gating por papel mora no DAL
+  (`requireAdmin`) e na página sensível (`configuracoes`); o layout só exige sessão.
+- **Sem setar cookie** (é Server Component) — login/logout vivem em `api/auth/*`.
+- **Sem acesso direto ao banco nas páginas** — usar o DAL e libs de `src/lib/*`.

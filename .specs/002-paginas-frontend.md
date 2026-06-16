@@ -1,12 +1,12 @@
 ---
 id: 002
 title: Páginas front-end (design Pencil → Next.js, mock data)
-status: approved
+status: done
 test_levels: []
 created: 2026-06-11
 ---
 
-# 002 — Páginas front-end do GuiaGoals
+# 002 — Páginas front-end do Mirantes.Live
 
 ## Objetivo
 
@@ -55,3 +55,34 @@ Nenhuma (sem banco nesta task).
 - Biome (lint+format) e `tsc --noEmit` sem erros.
 - DOC.md de todas as pastas de `src/` criados/atualizados.
 - Spec marcada `done`.
+
+## Estado da implementação (2026-06-16) — concluída
+
+As 8 rotas + `dashboard/layout.tsx`, os componentes e os utilitários de `src/lib`
+(`utils.ts`, `types.ts`, `mock-data.ts`) estão implementados com mock data e interação
+leve client-side, fiéis ao design.
+
+**Divergência registrada — consolidação de componentes.** A spec listou alguns componentes
+com nomes que, na implementação, foram **agrupados em arquivos maiores** (mesma função,
+menos arquivos). Mapeamento real:
+
+| Nome na spec | Arquivo real |
+|---|---|
+| `goal-tree` | `src/components/metas/metas-view.tsx` (árvore interativa + busca + seleção) |
+| `timeline-filters` | `src/components/timeline/timeline-view.tsx` (feed + filtros no mesmo arquivo) |
+| `service-row` / `incident-item` / `uptime-bars` | `src/components/monitoramento/service-cards.tsx` |
+| `profile-card` + `password-card` | `src/components/configuracoes/profile-cards.tsx` |
+| `tools-column` | `src/components/configuracoes/tools-cards.tsx` |
+
+Demais componentes (`layout/`, `shared/`, `goal-row`, `goal-detail-panel`, `goal-form`)
+existem com os nomes previstos. `public-header`/`app-header`/`live-tag`/`project-switcher`
+em `layout/`.
+
+**Backfill de DOC.md (fechamento desta verificação, 2026-06-16).** Criados os DOC.md das
+pastas frontend que faltavam (CLAUDE.md §2, recursivo): `src/components/` (raiz),
+`src/components/{ui,shared,metas,monitoramento,timeline}/`, `src/app/login/`,
+`src/app/dashboard/{metas, metas/nova, monitoramento, timeline}/`. Os DOC.md das pastas
+`src/app/api/auth/{login,logout,password}/` permanecem como follow-up (diferidos pela 003 —
+fora do escopo frontend desta task).
+
+`status` → **`done`**.

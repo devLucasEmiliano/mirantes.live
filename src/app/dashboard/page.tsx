@@ -8,7 +8,7 @@ import { UptimePanel } from "@/components/shared/uptime-panel";
 import { mockEvents, mockGoals, mockSummary } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
-  title: "Visão Geral — GuiaGoals",
+  title: "Visão Geral — Mirantes.Live",
 };
 
 export default function DashboardPage() {

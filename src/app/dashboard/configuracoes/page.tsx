@@ -14,7 +14,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { requireAdmin } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
-  title: "Configurações — GuiaGoals",
+  title: "Configurações — Mirantes.Live",
 };
 
 export default async function ConfiguracoesPage() {
@@ -27,8 +27,8 @@ export default async function ConfiguracoesPage() {
       <div className="flex flex-1 gap-6 px-8 py-6">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
           <ProfileCard />
-          <ProjectCard />
           <PasswordCard />
+          <ProjectCard />
         </div>
         <div className="flex w-[380px] shrink-0 flex-col gap-5">
           <ReportsCard />

@@ -9,9 +9,9 @@ import { redis } from "../src/lib/redis";
 // que carrega o .env antes — por isso process.env tem DATABASE_URL/REDIS_URL/etc.
 
 const DEV_USERS = [
-  { email: "admin@guiagoals.dev", password: "admin-dev-2026", role: "admin" },
+  { email: "admin@mirantes.live", password: "admin-dev-2026", role: "admin" },
   {
-    email: "cliente@guiagoals.dev",
+    email: "cliente@mirantes.live",
     password: "cliente-dev-2026",
     role: "client",
   },

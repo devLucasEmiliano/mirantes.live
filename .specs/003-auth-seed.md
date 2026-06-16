@@ -160,8 +160,8 @@ criou os 2 usuários e gravou `home:snapshot` no Redis. Confirmado no banco: `us
 admin + client.
 
 **Critérios de pronto — todos verificados:**
-- Home `/` do Redis: com a chave → "GuiaGoals Dashboard" + AO VIVO + timestamp; **apagar a
-  chave → fallback** ("GuiaGoals", sem selo); re-seed → restaura.
+- Home `/` do Redis: com a chave → "Mirantes.Live Dashboard" + AO VIVO + timestamp; **apagar a
+  chave → fallback** ("Mirantes.Live", sem selo); re-seed → restaura.
 - `/dashboard` deslogado → **307 → /login** (proxy por assinatura).
 - **Login admin** (Playwright) → dashboard com "Configurações" visível (`Administrador`).
 - **Login client** (Playwright) → "Configurações" **oculta**; `/dashboard/configuracoes`

@@ -4,7 +4,7 @@ import { TimelineView } from "@/components/timeline/timeline-view";
 import { mockEvents } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
-  title: "Timeline — GuiaGoals",
+  title: "Timeline — Mirantes.Live",
 };
 
 export default function TimelinePage() {

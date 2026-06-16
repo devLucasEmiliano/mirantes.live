@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LoginForm } from "@/components/login/login-form";
 
 export const metadata: Metadata = {
-  title: "Entrar — GuiaGoals",
+  title: "Entrar — Mirantes.Live",
 };
 
 export default function LoginPage() {
@@ -11,7 +11,7 @@ export default function LoginPage() {
       {/* Painel de marca */}
       <div className="hidden w-[560px] shrink-0 flex-col justify-between bg-surface-inverse p-[60px] lg:flex">
         <span className="font-display text-2xl font-bold text-foreground-inverse">
-          GuiaGoals
+          Mirantes.Live
         </span>
 
         <div className="flex flex-col gap-5">
@@ -26,7 +26,7 @@ export default function LoginPage() {
         </div>
 
         <span className="font-body text-xs text-foreground-muted">
-          © 2025 GuiaGoals. Todos os direitos reservados.
+          © 2025 Mirantes.Live. Todos os direitos reservados.
         </span>
       </div>
 

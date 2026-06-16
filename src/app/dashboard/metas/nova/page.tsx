@@ -3,7 +3,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { GoalForm } from "@/components/metas/goal-form";
 
 export const metadata: Metadata = {
-  title: "Nova Meta — GuiaGoals",
+  title: "Nova Meta — Mirantes.Live",
 };
 
 export default function NovaMetaPage() {

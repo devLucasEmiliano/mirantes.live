@@ -15,7 +15,9 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   algo faltar. Importado por `db.ts`, `redis.ts` e `auth/cookie.ts`.
 - **`db.ts`** — singleton do **Prisma Client** (padrão `globalThis` p/ hot-reload).
   No Prisma 7 o client exige driver adapter: usa `@prisma/adapter-pg` com
-  `env.DATABASE_URL`. Exporta `db`. Única porta de entrada ao Postgres no app.
+  `env.DATABASE_URL`. O pool `pg` é configurado com `keepAlive`, `idleTimeoutMillis`
+  e `connectionTimeoutMillis` p/ detectar/reciclar sockets ociosos derrubados pela
+  LAN (evita "Operation has timed out"). Exporta `db`. Única porta de entrada ao Postgres no app.
 - **`redis.ts`** — singleton **ioredis** (`lazyConnect`, erro logado e não-fatal).
   Exporta `redis`. Usado por cache (home snapshot) e rate-limit. Pub/Sub fica p/ a spec de SSE.
 - **`home-snapshot.ts`** — `buildHomeSnapshot()`, `writeHomeSnapshot()` (→ Redis

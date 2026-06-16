@@ -1,6 +1,10 @@
 import { redis } from "../redis";
 
-// Rate-limit do login por IP (SPEC §3/§12): 5 tentativas / 15 min, com INCR+EXPIRE.
+// Rate-limit do login (SPEC §3/§12): 5 tentativas / 15 min, com INCR+EXPIRE.
+// Genérico por "identificador" — o login aplica em DUAS dimensões (ver
+// login/route.ts): `ip:<ip>` e `email:<email>`. A dimensão por email é a defesa
+// robusta: o IP vem do header X-Forwarded-For, que o cliente pode forjar quando não
+// há proxy confiável à frente — sozinho, o limite por IP seria contornável.
 const WINDOW_SECONDS = 15 * 60;
 const MAX_ATTEMPTS = 5;
 
@@ -11,14 +15,14 @@ export interface RateLimitResult {
 }
 
 /**
- * Conta tentativas por IP numa janela fixa. A 1ª tentativa cria a chave e seu TTL;
- * a partir da 6ª, bloqueia (429). Fail-open: se o Redis cair, libera a tentativa
- * (o rate-limit é best-effort; não deve trancar todos os logins por causa do cache).
+ * Conta tentativas de um identificador numa janela fixa (`ratelimit:login:<id>`).
+ * A 1ª tentativa cria a chave e seu TTL; a partir da 6ª, bloqueia (429). Fail-open:
+ * se o Redis cair, libera (rate-limit é best-effort; não tranca todos os logins).
  */
 export async function checkLoginRateLimit(
-  ip: string,
+  identifier: string,
 ): Promise<RateLimitResult> {
-  const key = `ratelimit:login:${ip}`;
+  const key = `ratelimit:login:${identifier}`;
   try {
     const attempts = await redis.incr(key);
     if (attempts === 1) {
@@ -35,5 +39,14 @@ export async function checkLoginRateLimit(
       error,
     );
     return { ok: true };
+  }
+}
+
+/** Zera o contador de um identificador (no login bem-sucedido). Best-effort. */
+export async function clearLoginRateLimit(identifier: string): Promise<void> {
+  try {
+    await redis.del(`ratelimit:login:${identifier}`);
+  } catch (error) {
+    console.error("[rate-limit] falha ao limpar contador:", error);
   }
 }

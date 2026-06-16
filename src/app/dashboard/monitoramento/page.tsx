@@ -17,7 +17,7 @@ import {
 } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
-  title: "Monitoramento — GuiaGoals",
+  title: "Monitoramento — Mirantes.Live",
 };
 
 export default function MonitoramentoPage() {

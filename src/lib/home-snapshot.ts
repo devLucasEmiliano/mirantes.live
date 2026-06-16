@@ -17,7 +17,7 @@ export interface HomeSnapshot {
 // Exibido quando a chave não existe ou o Redis está fora: a home sempre renderiza.
 // `live: false` deixa explícito que não há snapshot fresco no Redis.
 const FALLBACK_SNAPSHOT: HomeSnapshot = {
-  projectName: "GuiaGoals",
+  projectName: "Mirantes.Live",
   tagline: "Acompanhe o progresso do seu projeto.",
   live: false,
   updatedAt: "1970-01-01T00:00:00.000Z",
@@ -26,7 +26,7 @@ const FALLBACK_SNAPSHOT: HomeSnapshot = {
 /** Monta o snapshot atual (valores fixos + timestamp de agora). Usado pelo seed. */
 export function buildHomeSnapshot(): HomeSnapshot {
   return {
-    projectName: "GuiaGoals Dashboard",
+    projectName: "Mirantes.Live Dashboard",
     tagline: "Acompanhe o progresso do seu projeto em tempo real.",
     live: true,
     updatedAt: new Date().toISOString(),

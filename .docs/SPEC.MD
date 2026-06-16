@@ -1,4 +1,4 @@
-# SPEC — Dashboard de Progresso de Projeto (GuiaGoals)
+# SPEC — Dashboard de Progresso de Projeto (Mirantes.Live)
 
 > Especificação técnica derivada do `PRD.md`. Define **como** implementar: schema, contratos de API, workers, realtime e regras de cálculo.
 > Onde o PRD descreve comportamento, este documento descreve estrutura e algoritmo.

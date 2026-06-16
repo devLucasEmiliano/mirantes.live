@@ -1,7 +1,6 @@
 import {
   Bell,
   ChevronRight,
-  Clock3,
   Cloud,
   Database,
   FileText,
@@ -53,13 +52,6 @@ export function ReportsCard() {
       iconClass: "text-accent-secondary",
       title: "Exportar Dados CSV",
       description: "Baixar metas e progresso em planilha",
-    },
-    {
-      icon: Clock3,
-      circleClass: "bg-[#EDE8E4]",
-      iconClass: "text-accent-tertiary",
-      title: "Exportar Timeline",
-      description: "Histórico de atividades em formato JSON",
     },
   ];
 
@@ -121,20 +113,17 @@ export function UptimeMonitoringCard() {
             <div key={service.id} className="flex flex-col">
               {index > 0 && <span className="mx-6 h-px bg-border-subtle" />}
               <div className="flex items-center justify-between gap-3 px-6 py-3">
-                <span className="flex items-center gap-3">
+                <span className="flex min-w-0 items-center gap-3">
                   <span className="flex size-8 items-center justify-center rounded-sm bg-surface-elevated">
                     <Icon className="size-4 text-foreground-primary" />
                   </span>
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-[13px] font-medium text-foreground-primary">
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-[13px] font-medium text-foreground-primary">
                       {service.name}
-                    </span>
-                    <span className="font-mono text-[11px] text-foreground-muted">
-                      {service.target}
                     </span>
                   </span>
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex shrink-0 items-center gap-2">
                   <span className={`size-2 rounded-full ${badge.className}`} />
                   <span
                     className={`font-body text-[11px] font-medium ${STATE_TEXT[service.state]}`}
@@ -158,7 +147,7 @@ export function UptimeMonitoringCard() {
   );
 }
 
-/** Card "Configurações do Projeto": toggles visuais. */
+/** Card "Configurações de Projetos": toggles visuais. */
 export function ProjectSettingsCard() {
   const settings = [
     {
@@ -190,7 +179,7 @@ export function ProjectSettingsCard() {
   return (
     <div className="flex flex-col rounded-sm bg-surface-card">
       <h2 className="border-b border-border-subtle px-6 py-5 font-display text-base font-bold text-foreground-primary">
-        Configurações do Projeto
+        Configurações de Projetos
       </h2>
       <div className="flex flex-col py-2">
         {settings.map((setting, index) => (

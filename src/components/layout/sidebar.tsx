@@ -58,7 +58,7 @@ export function Sidebar({ user }: SidebarProps) {
     <aside className="flex w-60 shrink-0 flex-col bg-surface-inverse px-4 py-6">
       <div className="flex justify-center pb-5">
         <span className="font-display text-lg font-bold text-foreground-inverse">
-          GuiaGoals
+          Mirantes.Live
         </span>
       </div>
 
