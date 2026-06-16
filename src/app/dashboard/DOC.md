@@ -12,9 +12,10 @@ as páginas/subrotas são as telas do produto. Só acessível com sessão válid
 
 ## Arquivos
 - **`layout.tsx`** (Server Component, `async`) — resolve o usuário via `getCurrentUser()`
-  (DAL, verificação real no banco); sem sessão → `redirect('/login')`. Passa o DTO
-  `{email, role}` ao `Sidebar`. O `proxy.ts` faz só o gate ótimista por assinatura — a
-  checagem autoritativa é aqui.
+  (DAL, verificação real no banco); sem sessão → `redirect('/login')`. Faz uma query leve
+  extra (`name` + `avatar.updatedAt`, **sem** o blob) e passa `{email, role, name, hasAvatar,
+  avatarVersion}` ao `Sidebar` p/ o chip de perfil. O `proxy.ts` faz só o gate ótimista por
+  assinatura — a checagem autoritativa é aqui.
 - **`page.tsx`** — Visão Geral; dados ainda do mock (`@/lib/mock-data`).
 
 ## O que NÃO vai aqui

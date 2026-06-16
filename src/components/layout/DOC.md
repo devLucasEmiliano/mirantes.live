@@ -9,9 +9,13 @@ Componentes avulsos; `sidebar` é cliente, os demais são de apresentação.
 
 ## Arquivos
 - **`sidebar.tsx`** (`"use client"`) — navegação do dashboard. Recebe `user` (DTO
-  `{email, role}`) por prop do `dashboard/layout`. Esconde "Configurações" se
-  `role === "client"` (PRD §2) e tem botão **Sair** → `POST /api/auth/logout` →
-  `/login`. Usa `usePathname` p/ destacar o item ativo.
+  `{email, role, name, hasAvatar, avatarVersion}`) por prop do `dashboard/layout`. O chip
+  inferior mostra a **foto** (`<img>` do `GET /api/account/avatar`) ou as **iniciais reais**
+  do nome (`deriveInitials`), além do nome e papel. Esconde "Configurações" se
+  `role === "client"` (PRD §2) e tem botão **Sair** → `POST /api/auth/logout` → `/login`.
+  Usa `usePathname` p/ destacar o item ativo. A `<aside>` é `sticky top-0 h-dvh`: fica
+  presa na altura do viewport com o chip de perfil ancorado na base (via espaçador
+  `flex-1`), sempre visível mesmo quando a `<main>` rola.
 - **`public-header.tsx`** — cabeçalho da home `/`. Recebe o snapshot
   (`projectName`, `tagline`, `live`, `updatedAt`) e renderiza marca, selo AO VIVO
   (quando `live`) e o horário do snapshot.

@@ -11,11 +11,18 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { deriveInitials } from "@/lib/account/initials";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
-  /** DTO mínimo do usuário logado (vem do layout, que consulta o DAL). */
-  user: { email: string; role: "admin" | "client" };
+  /** DTO do usuário logado (vem do layout, que consulta o DAL). */
+  user: {
+    email: string;
+    role: "admin" | "client";
+    name: string | null;
+    hasAvatar: boolean;
+    avatarVersion: number;
+  };
 }
 
 const NAV_ITEMS = [
@@ -41,7 +48,10 @@ export function Sidebar({ user }: SidebarProps) {
   const items = NAV_ITEMS.filter(
     (item) => !item.adminOnly || user.role === "admin",
   );
-  const initials = user.email.slice(0, 2).toUpperCase();
+  // Identidade do chip: nome real (cai p/ email se ainda não tiver nome). As iniciais
+  // espelham o que é exibido — consistente com o card de Perfil.
+  const displayName = user.name ?? user.email;
+  const initials = deriveInitials(displayName);
   const roleLabel = user.role === "admin" ? "Administrador" : "Cliente";
 
   async function handleLogout() {
@@ -55,7 +65,7 @@ export function Sidebar({ user }: SidebarProps) {
   }
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col bg-surface-inverse px-4 py-6">
+    <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col bg-surface-inverse px-4 py-6">
       <div className="flex justify-center pb-5">
         <span className="font-display text-lg font-bold text-foreground-inverse">
           Mirantes.Live
@@ -94,14 +104,27 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="h-px w-full bg-[#333333]" />
 
       <div className="flex items-center gap-2.5 pt-4">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-secondary">
-          <span className="text-[13px] font-semibold text-foreground-inverse">
-            {initials}
-          </span>
+        <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-secondary">
+          {user.hasAvatar ? (
+            // biome-ignore lint/performance/noImgElement: avatar servido por rota autenticada que devolve bytea cru; next/image não se aplica a esse byte-stream dinâmico
+            <img
+              src={`/api/account/avatar?v=${user.avatarVersion}`}
+              alt="Foto de perfil"
+              data-testid="sidebar-avatar-image"
+              className="size-full object-cover"
+            />
+          ) : (
+            <span
+              data-testid="sidebar-avatar-initials"
+              className="text-[13px] font-semibold text-foreground-inverse"
+            >
+              {initials}
+            </span>
+          )}
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-[13px] font-medium text-foreground-inverse">
-            {user.email}
+            {displayName}
           </span>
           <span className="font-body text-[11px] text-foreground-muted">
             {roleLabel}

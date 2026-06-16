@@ -69,19 +69,24 @@ test("perfil: upload de foto aparece, persiste e some ao remover", async ({
   await page.goto("/dashboard/configuracoes");
 
   await expect(page.getByTestId("avatar-initials")).toBeVisible();
+  await expect(page.getByTestId("sidebar-avatar-initials")).toBeVisible();
 
   await page
     .getByTestId("avatar-input")
     .setInputFiles("tests/fixtures/avatar.png");
   await expect(page.getByText(/foto atualizada/i)).toBeVisible();
   await expect(page.getByTestId("avatar-image")).toBeVisible();
+  // A sidebar (server component) reflete a foto via o router.refresh() do form.
+  await expect(page.getByTestId("sidebar-avatar-image")).toBeVisible();
 
   await page.reload();
   await expect(page.getByTestId("avatar-image")).toBeVisible();
+  await expect(page.getByTestId("sidebar-avatar-image")).toBeVisible();
 
   await page.getByRole("button", { name: /remover foto/i }).click();
   await expect(page.getByText(/foto removida/i)).toBeVisible();
   await expect(page.getByTestId("avatar-initials")).toBeVisible();
+  await expect(page.getByTestId("sidebar-avatar-initials")).toBeVisible();
 });
 
 test("senha: nova ≠ confirmar bloqueia no client (sem request)", async ({
