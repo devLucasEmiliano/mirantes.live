@@ -7,6 +7,7 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 
 ## Estrutura
 - `auth/` — autenticação (senha, cookie assinado, DAL de sessão, rate-limit). Ver `auth/DOC.md`.
+- `account/` — serviços de conta (perfil, senha, avatar, iniciais), testáveis fora do Next. Ver `account/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
 ## Arquivos

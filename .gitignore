@@ -13,6 +13,12 @@
 # testing
 /coverage
 
+# playwright (e2e) — artefatos gerados, fora do versionamento e do lint
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # next.js
 /.next/
 /out/

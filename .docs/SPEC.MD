@@ -42,7 +42,18 @@ estático. O conteúdo do snapshot é não sensível.
 | email | text unique not null | |
 | password_hash | text not null | argon2id |
 | role | text not null | `admin` \| `client` |
+| name | text null | nome de exibição (perfil) — spec 007 |
 | created_at | timestamptz | default now() |
+
+#### `avatars` (foto de perfil — spec 007)
+| coluna | tipo | notas |
+|--------|------|-------|
+| user_id | uuid PK / FK→users | 1:1; `on delete cascade` |
+| data | bytea not null | bytes da imagem (sem storage externo — §0) |
+| mime_type | text not null | `image/png` \| `image/jpeg` \| `image/webp` |
+| updated_at | timestamptz | atualizado a cada gravação |
+
+> Tabela **lateral** (não coluna em `users`) p/ não arrastar o blob em todo `getCurrentUser`. Cap de 2 MiB + allowlist de mime validados na API (`PUT /api/account/avatar`); servida por `GET /api/account/avatar`.
 
 ### 2.2 `sessions`
 | coluna | tipo | notas |

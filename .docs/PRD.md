@@ -164,7 +164,7 @@ Tela exclusiva do admin (cliente não acessa nem vê). Contém:
 - **Serviços monitorados**: adicionar/editar/remover; tipo de check (HTTP/Docker), URL/container, status codes OK, threshold de latência, intervalo de polling, N falhas para incidente.
 - **GitHub**: PAT, lista de repositórios, intervalo de polling.
 - **Retenção da Timeline**: janela em dias (configurável).
-- **Conta**: troca de senha do usuário logado.
+- **Conta**: editar **nome, email e foto** (upload de imagem) do perfil + troca de senha do usuário logado (spec 007).
 
 ---
 

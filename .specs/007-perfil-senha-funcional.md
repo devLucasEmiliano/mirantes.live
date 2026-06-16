@@ -1,7 +1,7 @@
 ---
 id: 007
 title: Configurações — Perfil e Senha funcionais (+ harness de testes)
-status: tests-red    # draft | approved | tests-red | done
+status: done         # draft | approved | tests-red | done
 test_levels: [unit, integration, e2e]
 created: 2026-06-16
 ---
@@ -721,6 +721,29 @@ export default function globalSetup() {
 - Manual: `bun run db:seed` → `bun run dev` → logar admin → trocar nome/email/foto e senha →
   conferir persistência após reload e re-login com as novas credenciais.
 - `bunx biome check` e `bun run typecheck` limpos.
+
+## Notas de implementação (divergências do plano)
+
+Ajustes feitos durante a execução (CLAUDE.md §3.2 — registro vivo):
+
+1. **Prisma 7 — `generate` separado:** `prisma migrate dev` **não** roda mais `prisma generate`
+   automaticamente (nem aceita `--skip-seed`). Após a migração `profile_and_avatar` foi preciso
+   `bunx prisma generate` para o client conhecer `name`/`avatar` (senão `db.user.create({name})`
+   falha em runtime com "Unknown argument `name`"). O e2e `global-setup` roda `migrate deploy` +
+   `db seed`.
+2. **Criação do banco de teste:** automatizada via script one-off com o **`Bun.SQL`** nativo (sem
+   dependência `pg`), conectando no DB `postgres` e rodando `CREATE DATABASE mirantes_test`. O
+   `global-setup` segue só aplicando `migrate deploy`.
+3. **e2e — `getByLabel(..., { exact: true })`:** os campos de senha têm botão "Mostrar senha"
+   (aria-label) e "Nova Senha" é substring de "Confirmar Nova Senha"; sem `exact`, o matcher por
+   rótulo resolvia 2 elementos (strict mode violation). Correção de seletor — intenção do teste
+   inalterada.
+4. **e2e — servidor dedicado:** o Next 16 bloqueia um 2º `next dev` no mesmo projeto, então rodar
+   o e2e exige parar o `next dev` de desenvolvimento (:3000). `playwright.config.ts` recebeu
+   timeouts folgados (test 90s, navegação 60s, ação 15s, webServer 120s) p/ o cold-compile do dev.
+5. **`bytea` + TypeScript:** `setAvatar` copia os bytes com `new Uint8Array(input.bytes)` porque o
+   Prisma `Bytes` espera `Uint8Array<ArrayBuffer>` e o `Buffer` do Node é `<ArrayBufferLike>`.
+6. **Artefatos do Playwright** (`test-results/`, `playwright-report/`, …) entraram no `.gitignore`.
 
 ## Fora de escopo
 

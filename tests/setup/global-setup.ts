@@ -6,7 +6,9 @@ export default function globalSetup() {
   config({ path: ".env.test" });
   const url = process.env.TEST_DATABASE_URL;
   if (!url) {
-    throw new Error("TEST_DATABASE_URL ausente — crie .env.test (ver .env.example)");
+    throw new Error(
+      "TEST_DATABASE_URL ausente — crie .env.test (ver .env.example)",
+    );
   }
   // Prisma 7 lê DATABASE_URL via prisma.config.ts; apontamos p/ o banco de teste.
   execSync("bunx prisma migrate deploy", {

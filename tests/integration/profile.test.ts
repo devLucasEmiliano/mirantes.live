@@ -22,7 +22,11 @@ it("atualiza nome e email (lowercased)", async () => {
 });
 
 it("recusa email já em uso por outro usuário", async () => {
-  const a = await seedUser({ email: "a@x.com", password: "pass-123", name: "A" });
+  const a = await seedUser({
+    email: "a@x.com",
+    password: "pass-123",
+    name: "A",
+  });
   await seedUser({ email: "b@x.com", password: "pass-123", name: "B" });
 
   const res = await updateProfile(a.id, { name: "A", email: "b@x.com" });

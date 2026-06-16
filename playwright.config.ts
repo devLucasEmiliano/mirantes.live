@@ -15,12 +15,19 @@ const webEnv = {
 export default defineConfig({
   testDir: "tests/e2e",
   globalSetup: "tests/e2e/global-setup.ts",
-  use: { baseURL: `http://localhost:${PORT}`, trace: "on-first-retry" },
+  timeout: 90_000, // next dev compila a rota no 1º acesso — folga p/ a navegação
+  use: {
+    baseURL: `http://localhost:${PORT}`,
+    trace: "on-first-retry",
+    navigationTimeout: 60_000,
+    actionTimeout: 15_000, // falha rápido em elemento ausente (red) ou bug real
+  },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: "bun run dev",
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
+    timeout: 120_000,
     env: webEnv,
   },
 });

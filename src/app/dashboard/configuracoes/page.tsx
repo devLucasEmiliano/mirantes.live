@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import {
-  PasswordCard,
-  ProfileCard,
-  ProjectCard,
-} from "@/components/configuracoes/profile-cards";
+import { redirect } from "next/navigation";
+import { PasswordForm } from "@/components/configuracoes/password-form";
+import { ProjectCard } from "@/components/configuracoes/profile-cards";
+import { ProfileForm } from "@/components/configuracoes/profile-form";
 import {
   DangerZoneCard,
   ProjectSettingsCard,
@@ -12,22 +11,59 @@ import {
 } from "@/components/configuracoes/tools-cards";
 import { AppHeader } from "@/components/layout/app-header";
 import { requireAdmin } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "Configurações — Mirantes.Live",
 };
 
+const MONTHS_PT = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
+
+function formatMemberSince(date: Date): string {
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${day} ${MONTHS_PT[date.getMonth()]} ${date.getFullYear()}`;
+}
+
 export default async function ConfiguracoesPage() {
   // Tela exclusiva do admin (PRD §2/§9). Cliente é redirecionado ao dashboard.
-  await requireAdmin();
+  const admin = await requireAdmin();
+  const user = await db.user.findUnique({
+    where: { id: admin.id },
+    select: {
+      name: true,
+      email: true,
+      createdAt: true,
+      avatar: { select: { updatedAt: true } },
+    },
+  });
+  if (!user) redirect("/login");
 
   return (
     <>
       <AppHeader title="Configurações" breadcrumb="Dashboard / Configurações" />
       <div className="flex flex-1 gap-6 px-8 py-6">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <ProfileCard />
-          <PasswordCard />
+          <ProfileForm
+            initialName={user.name ?? ""}
+            initialEmail={user.email}
+            memberSince={formatMemberSince(user.createdAt)}
+            initialHasAvatar={user.avatar !== null}
+            initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
+          />
+          <PasswordForm />
           <ProjectCard />
         </div>
         <div className="flex w-[380px] shrink-0 flex-col gap-5">

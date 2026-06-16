@@ -39,13 +39,17 @@ async function main() {
     });
   }
 
-  console.log("→ Gravando snapshot público da home no Redis (home:snapshot)...");
+  console.log(
+    "→ Gravando snapshot público da home no Redis (home:snapshot)...",
+  );
   const snapshot = await writeHomeSnapshot();
 
   console.log("\n✓ Seed concluído.\n");
   console.log("Credenciais de DESENVOLVIMENTO (não usar em produção):");
   for (const user of DEV_USERS) {
-    console.log(`  • ${user.role.padEnd(6)}  ${user.email}  /  ${user.password}`);
+    console.log(
+      `  • ${user.role.padEnd(6)}  ${user.email}  /  ${user.password}`,
+    );
   }
   console.log(
     `\nHome snapshot: "${snapshot.projectName}" (live=${snapshot.live}).`,

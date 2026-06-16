@@ -23,7 +23,9 @@ it("troca a senha e invalida as OUTRAS sessões (mantém a atual)", async () => 
   const after = await db.user.findUniqueOrThrow({ where: { id: user.id } });
   expect(await verifyPassword(after.passwordHash, "new-pass-456")).toBe(true);
   expect(await verifyPassword(after.passwordHash, "old-pass-123")).toBe(false);
-  expect(await db.session.findUnique({ where: { id: keep.id } })).not.toBeNull();
+  expect(
+    await db.session.findUnique({ where: { id: keep.id } }),
+  ).not.toBeNull();
   expect(await db.session.findUnique({ where: { id: other.id } })).toBeNull();
 });
 
@@ -43,7 +45,9 @@ it("recusa senha atual errada sem alterar nada", async () => {
   expect(res).toEqual({ ok: false, error: "invalid_current_password" });
   const after = await db.user.findUniqueOrThrow({ where: { id: user.id } });
   expect(after.passwordHash).toBe(before.passwordHash);
-  expect(await db.session.findUnique({ where: { id: sess.id } })).not.toBeNull();
+  expect(
+    await db.session.findUnique({ where: { id: sess.id } }),
+  ).not.toBeNull();
 });
 
 it("retorna user_not_found para id inexistente", async () => {

@@ -1,15 +1,15 @@
 import {
   ChevronDown,
   ChevronRight,
-  EyeOff,
   GitBranch,
-  Lock,
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { mockUser } from "@/lib/mock-data";
 
-function CardShell({
+// Presentacionais compartilhados (sem estado): usados tanto por ProjectCard (server)
+// quanto pelos forms client (ProfileForm/PasswordForm). Por isso NÃO levam "use client".
+
+export function CardShell({
   title,
   children,
   headerExtra,
@@ -38,7 +38,7 @@ function CardShell({
   );
 }
 
-function ReadOnlyField({
+export function ReadOnlyField({
   label,
   value,
   icon,
@@ -71,39 +71,7 @@ function PrimaryButton({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Card "Perfil do Usuário". */
-export function ProfileCard() {
-  return (
-    <CardShell
-      title="Perfil do Usuário"
-      footer={<PrimaryButton>Salvar Perfil</PrimaryButton>}
-    >
-      <div className="flex items-center gap-5 p-6">
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex size-[72px] items-center justify-center rounded-full bg-accent-secondary">
-            <span className="text-2xl font-bold text-foreground-inverse">
-              {mockUser.initials}
-            </span>
-          </div>
-          <span className="font-body text-xs text-accent-primary">
-            Alterar foto
-          </span>
-        </div>
-        <div className="flex flex-1 flex-col gap-4">
-          <div className="flex gap-4">
-            <ReadOnlyField label="Nome" value={mockUser.name} />
-            <ReadOnlyField label="Email" value={mockUser.email} />
-          </div>
-          <div className="flex gap-4">
-            <ReadOnlyField label="Membro desde" value="02 Mar 2026" />
-          </div>
-        </div>
-      </div>
-    </CardShell>
-  );
-}
-
-/** Card "Projetos": projeto ativo expandido + projeto recolhido. */
+/** Card "Projetos": projeto ativo expandido + projeto recolhido. (Fora do escopo da 007.) */
 export function ProjectCard() {
   return (
     <CardShell
@@ -197,39 +165,6 @@ export function ProjectCard() {
         <Plus className="size-4" />
         Adicionar Projeto
       </button>
-    </CardShell>
-  );
-}
-
-function PasswordField({ label, wide }: { label: string; wide?: boolean }) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${wide ? "" : "flex-1"}`}>
-      <span className="font-body text-xs font-medium text-foreground-primary">
-        {label}
-      </span>
-      <span className="flex items-center gap-2.5 rounded-sm border border-border-subtle bg-surface-primary px-3.5 py-2.5">
-        <Lock className="size-4 shrink-0 text-foreground-muted" />
-        <span className="flex-1 text-sm text-foreground-primary">••••••••</span>
-        <EyeOff className="size-4 shrink-0 text-foreground-muted" />
-      </span>
-    </div>
-  );
-}
-
-/** Card "Alterar Senha" (PRD §3: troca de senha do usuário logado). */
-export function PasswordCard() {
-  return (
-    <CardShell
-      title="Alterar Senha"
-      footer={<PrimaryButton>Atualizar Senha</PrimaryButton>}
-    >
-      <div className="flex flex-col gap-4 p-6">
-        <PasswordField label="Senha Atual" wide />
-        <div className="flex gap-4">
-          <PasswordField label="Nova Senha" />
-          <PasswordField label="Confirmar Nova Senha" />
-        </div>
-      </div>
     </CardShell>
   );
 }
