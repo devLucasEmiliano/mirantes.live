@@ -1,4 +1,5 @@
 import { Bell } from "lucide-react";
+import { db } from "@/lib/db";
 import { LiveTag } from "./live-tag";
 import { ProjectSwitcher } from "./project-switcher";
 
@@ -7,7 +8,14 @@ interface AppHeaderProps {
   breadcrumb: string;
 }
 
-export function AppHeader({ title, breadcrumb }: AppHeaderProps) {
+// Server Component (async): busca o nome do projeto raiz (o mais antigo) e passa ao
+// switcher. Query leve (select name) — todas as telas autenticadas o renderizam.
+export async function AppHeader({ title, breadcrumb }: AppHeaderProps) {
+  const project = await db.project.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { name: true },
+  });
+
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border-subtle bg-surface-card px-8">
       <div className="flex items-center gap-3">
@@ -20,7 +28,7 @@ export function AppHeader({ title, breadcrumb }: AppHeaderProps) {
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <ProjectSwitcher />
+        <ProjectSwitcher projectName={project?.name ?? null} />
         <LiveTag />
         <button
           type="button"

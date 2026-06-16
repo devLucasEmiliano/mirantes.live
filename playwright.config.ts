@@ -15,6 +15,9 @@ const webEnv = {
 export default defineConfig({
   testDir: "tests/e2e",
   globalSetup: "tests/e2e/global-setup.ts",
+  // 1 worker: a suíte compartilha UM banco de teste e o fluxo de senha (007) troca a
+  // senha do admin temporariamente — paralelizar arquivos causaria corrida no login.
+  workers: 1,
   timeout: 90_000, // next dev compila a rota no 1º acesso — folga p/ a navegação
   use: {
     baseURL: `http://localhost:${PORT}`,

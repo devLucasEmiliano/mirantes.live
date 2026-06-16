@@ -7,9 +7,11 @@
 
 ## 1. Visão geral
 
-Sistema para um desenvolvedor solo apresentar o progresso de um projeto a um único cliente. O **admin** cria e edita conteúdo; o **cliente** apenas visualiza, com atualização em tempo real (sem refresh). Dedicado a um único cliente.
+Sistema para um desenvolvedor solo apresentar o progresso de projetos a um único cliente. O **admin** cria e edita conteúdo; o **cliente** apenas visualiza, com atualização em tempo real (sem refresh). Dedicado a um único cliente.
 
-Além do acompanhamento de metas, o produto inclui um subsistema de **monitoramento de serviços** (uptime/incidentes), **integração com GitHub** (commits) e uma **timeline unificada** de atividade.
+**Projeto é a raiz do domínio** (spec 008): cada **Projeto = exatamente 1 repositório GitHub**. O sistema é **multi-projeto** — metas, atividades (commits) e quedas penduram em `project_id` (cada nessas suas specs). Por ora a fundação cria `Project` + dados do GitHub e o seletor/cards consomem o real; metas/timeline/monitoramento seguem por evoluir.
+
+Além do acompanhamento de metas, o produto inclui um subsistema de **monitoramento de serviços** (uptime/incidentes), **integração com GitHub** (commits, GitHub Actions e branches — por polling do worker **e** sincronização manual) e uma **timeline unificada** de atividade.
 
 | Item | Decisão |
 |------|---------|
@@ -37,7 +39,7 @@ Além do acompanhamento de metas, o produto inclui um subsistema de **monitorame
 
 ## 2. Papéis e visibilidade
 
-- **admin** (você): cria/edita/arquiva metas, configura serviços monitorados e repositórios, marca visibilidade de eventos, gerencia retenção. Vê tudo.
+- **admin** (você): cria/edita/arquiva metas, gerencia **projetos** (cada um = 1 repositório GitHub: adiciona/remove/sincroniza), configura serviços monitorados, marca visibilidade de eventos, gerencia retenção. Vê tudo. **Configurações** segue admin-only.
 - **client** (cliente único): somente leitura. Vê Visão Geral, Metas, Timeline e Monitoramento. **Não** vê a tela de Configurações nem nenhum dado de configuração.
 - **Sem cadastro público.** A conta do cliente é provisionada pelo admin (seed/script). Não há conceito de múltiplos "membros do projeto".
 
@@ -99,7 +101,7 @@ Quatro cards no topo, derivados automaticamente:
    - **Progresso** = progresso agregado do projeto (média das metas de topo).
    - **Pontualidade** = % de metas ativas **não atrasadas**.
    - **Uptime** = uptime médio dos serviços monitorados (janela corrente).
-3. **Commits Semanais** — total de commits dos repositórios na janela de 7 dias, com **variação % vs. semana anterior**.
+3. **Commits Semanais** — total de commits dos projetos na janela de 7 dias, com **variação % vs. semana anterior** (spec 008: contagem real sobre a tabela `commits`).
 4. **Tempo Médio** — média de dias entre criação e conclusão (`completed_at − created_at`) das metas concluídas.
 
 A Visão Geral também resume status dos serviços e atividade recente (subconjunto da Timeline).
@@ -148,13 +150,13 @@ Três estados por serviço: **Online · Degradado · Offline**.
 
 ---
 
-## 8. Integração GitHub (commits)
+## 8. Integração GitHub (commits, Actions, branches)
 
-- Provedor: **GitHub**.
-- Captura por **polling da API** (intervalo configurável).
-- **Múltiplos repositórios** configuráveis para o projeto.
-- Autenticação por **Personal Access Token (PAT)** armazenado como **segredo de servidor** (nunca exposto ao cliente nem em URL).
-- Alimenta o card "Commits Semanais" e gera eventos `commit` na Timeline.
+- Provedor: **GitHub**. **Cada Projeto = exatamente 1 repositório** (spec 008).
+- Captura por **polling da API** (worker de fundo) **e** por **sincronização manual** ("Sincronizar Agora" em Configurações) — ambos sobre o mesmo núcleo idempotente.
+- Sincroniza e persiste: **commits** (dedupe por SHA), **GitHub Actions** (workflow runs) e **branches** (com a default), além de nome/branch padrão do repo.
+- Autenticação por **Personal Access Token (PAT)** armazenado como **segredo de servidor** (nunca exposto ao cliente, em log nem em URL).
+- Alimenta o card "Commits Semanais", o bloco "último commit" e o log de atividade do projeto; gerará eventos `commit` na Timeline (spec futura).
 
 ---
 
@@ -162,7 +164,7 @@ Três estados por serviço: **Online · Degradado · Offline**.
 
 Tela exclusiva do admin (cliente não acessa nem vê). Contém:
 - **Serviços monitorados**: adicionar/editar/remover; tipo de check (HTTP/Docker), URL/container, status codes OK, threshold de latência, intervalo de polling, N falhas para incidente.
-- **GitHub**: PAT, lista de repositórios, intervalo de polling.
+- **Projetos** (spec 008): adicionar (owner/repo)/remover/**sincronizar agora**; ao expandir, log de atividade (commits recentes, branches, status do último CI). PAT lido do servidor (env); intervalo de polling do worker.
 - **Retenção da Timeline**: janela em dias (configurável).
 - **Conta**: editar **nome, email e foto** (upload de imagem) do perfil + troca de senha do usuário logado (spec 007).
 
@@ -201,7 +203,7 @@ Todos passam por: grava no Postgres → registra evento → publica no Redis →
 | Histórico de uptime | Uma linha por check |
 | Incidente automático | Após N falhas seguidas (default 3) + manual |
 | Docker socket inacessível | Offline (conta downtime) |
-| Commits | GitHub real, polling, múltiplos repos, PAT no servidor |
+| Projetos / Commits | Projeto = 1 repo GitHub; sync de commits + Actions + branches por polling **e** manual; dedupe por SHA; PAT no servidor |
 | Saúde do projeto | 0.5 progresso / 0.3 pontualidade / 0.2 uptime |
 | Tempo médio | Calculado (criação→conclusão) |
 | Total de metas | Só ativas |
@@ -227,7 +229,7 @@ Todos passam por: grava no Postgres → registra evento → publica no Redis →
 - **N falhas para abrir incidente:** 3 (configurável).
 - **Threshold de latência para "Degradado":** 1000ms (configurável por serviço).
 - **Retenção da Timeline:** 90 dias (configurável).
-- Schema canônico (tabelas `users`, `sessions`, `goals`, `events`, `services`, `service_checks`, `incidents`, `repos`, `commits`) detalhado no `SPEC.md`.
+- Schema canônico (tabelas `users`, `sessions`, `projects`, `commits`, `branches`, `workflow_runs`, `goals`, `events`, `services`, `service_checks`, `incidents`) detalhado no `SPEC.md`. `projects` substitui a antiga `repos`; `goals`/`events`/`services` ganham `project_id` nas suas specs.
 
 flowchart TD
     A[Pagina de Progresso] -->|Login| B(Dashboard)

@@ -8,6 +8,7 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 ## Estrutura
 - `auth/` — autenticação (senha, cookie assinado, DAL de sessão, rate-limit). Ver `auth/DOC.md`.
 - `account/` — serviços de conta (perfil, senha, avatar, iniciais), testáveis fora do Next. Ver `account/DOC.md`.
+- `github/` — integração GitHub (client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
 ## Arquivos
@@ -24,9 +25,14 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - **`home-snapshot.ts`** — `buildHomeSnapshot()`, `writeHomeSnapshot()` (→ Redis
   `home:snapshot`) e `readHomeSnapshot()` (← Redis, com fallback estático). Conteúdo
   público e não sensível (nome, tagline, flag "no ar", timestamp).
+- **`projects.ts`** — serviço de Projetos (spec 008): `createProject`/`listProjects`/`getProject`/
+  `deleteProject` (retornos discriminados `ok`) + consumidores da Visão Geral `weeklyCommitStats`
+  (janelas 7d/7–14d) e `latestCommit`. Valida o slug (de `github/map`) antes de gravar; colisão
+  `(owner,repo)` (P2002) → `already_exists`. Única porta ao Postgres no domínio de projetos.
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
 - **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). Mock/UI.
-- **`mock-data.ts`** — dados mock do front-end (serão substituídos pela API real).
+- **`mock-data.ts`** — dados mock do front-end (serão substituídos pela API real). `mockProject`
+  saiu (spec 008 — Switcher usa o nome real); `mockProjectUptimeDays`/metas/serviços seguem mock.
 
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.

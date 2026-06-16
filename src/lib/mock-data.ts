@@ -18,12 +18,6 @@ export const mockUser = {
   email: "cliente@mirantes.live",
 };
 
-export const mockProject = {
-  name: "Mirantes.Live Dashboard",
-  description: "Dashboard de progresso para acompanhamento do projeto",
-  startedAt: "2026-03-02",
-};
-
 export const mockSummary = {
   totalGoals: 18,
   completedGoals: 12,

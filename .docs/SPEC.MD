@@ -17,7 +17,7 @@
 ### Processos
 1. **Web/API** — Next.js (UI + Route Handlers + endpoint SSE).
 2. **Worker de monitoramento** — loop de polling dos serviços (HTTP/Docker).
-3. **Worker de GitHub** — polling periódico dos repositórios.
+3. **Worker de GitHub** — polling periódico dos projetos (1 repo cada): commits + Actions + branches.
 4. **Worker de limpeza** — purga de eventos além da retenção.
 
 Os workers podem rodar no mesmo container (processo Node com schedulers) ou separados; isolam-se da request/response do usuário.
@@ -133,11 +133,37 @@ estático. O conteúdo do snapshot é não sensível.
 | resolved_at | timestamptz null | |
 | description | text | |
 
-### 2.8 `repos` e `commits` (GitHub)
-`repos`: id, `owner`, `name`, `last_polled_at`, `last_seen_sha`.
-`commits`: id, `repo_id` FK, `sha` unique, `message`, `author`, `committed_at`.
-- PAT **não** vive no banco em texto plano — variável de ambiente / secret store do servidor.
-- Índice em `commits(committed_at)` para a janela semanal.
+### 2.8 `projects`, `commits`, `branches`, `workflow_runs` (GitHub — spec 008)
+
+**`projects`** (substitui a antiga `repos`) — **1 projeto = 1 repositório GitHub**, raiz do domínio:
+| coluna | tipo | notas |
+|--------|------|-------|
+| id | uuid PK | |
+| name | text not null | nome de exibição |
+| owner | text not null | dono do repo |
+| repo | text not null | nome do repo |
+| description | text null | |
+| default_branch | text null | preenchido pelo sync |
+| last_polled_at | timestamptz null | cursor de tempo do sync (`since`) |
+| last_seen_sha | text null | HEAD da branch padrão no último sync |
+| created_at | timestamptz | default now() |
+- `@@unique(owner, repo)` — chave natural do repo.
+
+**`commits`** — agora pendurado em `project_id` (não mais `repo_id`):
+| id uuid PK | project_id uuid FK→projects (on delete cascade) | sha text | message text (subject) | author text | committed_at timestamptz | created_at timestamptz |
+- `@@unique(project_id, sha)` — **dedupe** do sync. Índice `(project_id, committed_at)` p/ a janela semanal.
+
+**`branches`** — uma linha por branch viva no repo:
+| id uuid PK | project_id uuid FK→projects (cascade) | name text | commit_sha text | is_default boolean | updated_at timestamptz |
+- `@@unique(project_id, name)`. Sync faz upsert por nome e **remove** as ausentes.
+
+**`workflow_runs`** — GitHub Actions:
+| id uuid PK | project_id uuid FK→projects (cascade) | run_id bigint (id do GitHub) | name text | head_branch text null | head_sha text | status text | conclusion text null | run_number int | html_url text | run_started_at timestamptz null | updated_at timestamptz |
+- `@@unique(project_id, run_id)` (upsert). Índice `(project_id, run_started_at)`.
+- `run_id` é **bigint** (estoura int32) e **não é JSON-safe** → DTO serializa com `String()`.
+
+> PAT **não** vive no banco — env/secret do servidor (`env.GITHUB_PAT`).
+> `goals`/`events`/`services` ganham `project_id` nas suas specs (Projeto é a raiz); aqui ainda são globais.
 
 ---
 
@@ -171,13 +197,17 @@ estático. O conteúdo do snapshot é não sensível.
 | POST | `/api/incidents` | admin | registra incidente manual |
 | PATCH | `/api/incidents/:id` | admin | resolve incidente manual |
 | GET/POST/PATCH/DELETE | `/api/services` | admin | CRUD de serviços monitorados |
-| GET/POST/DELETE | `/api/repos` | admin | gerência de repositórios GitHub |
+| GET | `/api/projects` | autenticado | lista projetos |
+| POST | `/api/projects` | admin | cria projeto (1 repo); `invalid_slug`→400, `already_exists`→409, criado→201 |
+| GET | `/api/projects/:id` | autenticado | projeto + log (commits/branches/runs); `runId` serializado com `String()` |
+| DELETE | `/api/projects/:id` | admin | remove projeto (CASCADE) |
+| POST | `/api/projects/:id/sync` | admin | sincroniza (commits/Actions/branches); `no_token`→409, `not_found`→404, `github_error`→502 |
 | GET/PATCH | `/api/settings` | admin | retenção, intervalos, PAT |
 | GET | `/api/stream` | autenticado | canal SSE |
 
 **Regra transversal de mutação:** grava no Postgres (transação) → insere em `events` → `PUBLISH goals:updates {event}` no Redis → SSE entrega.
 
-**Filtro de visibilidade:** endpoints de leitura para `role=client` aplicam `visible_to_client = true` e nunca expõem dados de `/api/settings`, `/api/services`, `/api/repos`.
+**Filtro de visibilidade:** endpoints de leitura para `role=client` aplicam `visible_to_client = true` e nunca expõem dados de `/api/settings`, `/api/services`. As **mutações** de `/api/projects` (POST/DELETE/sync) são admin-only (403 ao cliente); o `GET` de projetos é autenticado.
 
 **Home pública (`/`):** Server Component que lê o snapshot do Redis (`readHomeSnapshot()`,
 chave `home:snapshot`) — **não** é Route Handler. `force-dynamic` (lê o Redis a cada
@@ -245,12 +275,23 @@ request); fallback estático se ausente. O Postgres permanece a fonte de verdade
 
 ---
 
-## 7. GitHub — worker
+## 7. GitHub — worker + sync manual (spec 008)
 
-- A cada intervalo, para cada repo: chama API de commits desde `last_seen_sha` (ou `since=last_polled_at`).
-- Insere novos `commits` (dedupe por `sha`), atualiza `last_seen_sha`/`last_polled_at`.
-- Lote de novos commits → 1 evento `commit.batch` ("N commits em <repo>") → Timeline + SSE.
-- PAT lido de env/secret; nunca em log, resposta de API ou URL.
+Núcleo único **`syncProject(projectId, client?)`** (em `src/lib/github/sync.ts`), compartilhado
+pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:github`) e pelo
+**botão manual** (`POST /api/projects/:id/sync`). Idempotente, por projeto:
+
+- **Repo/nome:** `getRepo` → atualiza `name` e `default_branch`.
+- **Commits:** `listCommits({ since: last_polled_at, sha: default_branch })` → `createMany(skipDuplicates)`
+  na unique `(project, sha)`; conta os realmente inseridos.
+- **Branches:** `listBranches` → upsert por `(project, name)` (marca a default) + **remove** as ausentes.
+- **Actions:** `listWorkflowRuns` (envelope `{ workflow_runs }`) → upsert por `(project, run_id)`.
+- **Cursor:** `last_seen_sha = HEAD da default`; `last_polled_at = now()`.
+- Erros: `project_not_found` / `no_token` (sem PAT, sem rede) / `github_error` (borda HTTP/rede).
+- Lote de novos commits → evento `commit.batch` + `PUBLISH goals:updates` → Timeline + SSE: **pendente**
+  da spec de Timeline (fica só um `// TODO(spec-timeline)`).
+- PAT lido de `env.GITHUB_PAT`; **nunca** em log, resposta de API ou URL (só no header Authorization).
+- Cliente HTTP: `fetch` nativo, **sem Octokit** (CLAUDE.md §0); injetável p/ teste com stub.
 
 ---
 

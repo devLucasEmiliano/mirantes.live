@@ -33,7 +33,7 @@ export function PublicHeader({
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <ProjectSwitcher />
+        <ProjectSwitcher projectName={projectName} />
         {live && <LiveTag />}
         {updatedLabel && (
           <span className="font-body text-[11px] text-foreground-muted">

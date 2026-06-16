@@ -13,4 +13,7 @@ export default function globalSetup() {
   };
   execSync("bunx prisma migrate deploy", { stdio: "inherit", env });
   execSync("bunx prisma db seed", { stdio: "inherit", env });
+  // Pré-seed do log de atividade (commits/branch/run) do projeto dev — determinístico
+  // p/ a jornada de Projetos (spec 008). Idempotente; roda no runtime real (bun).
+  execSync("bun run tests/e2e/seed-activity.ts", { stdio: "inherit", env });
 }

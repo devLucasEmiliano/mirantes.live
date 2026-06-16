@@ -2,7 +2,7 @@
 
 ## Propósito
 Tela de Configurações — **exclusiva do admin** (PRD §2/§9): conta (perfil + senha), projetos e
-ferramentas. Perfil e Senha são funcionais (spec 007); o resto ainda é mock.
+ferramentas. Perfil/Senha (spec 007) e Projetos (spec 008) são funcionais; ferramentas seguem mock.
 
 ## Estrutura
 Uma página.
@@ -10,9 +10,10 @@ Uma página.
 ## Arquivos
 - **`page.tsx`** (Server Component, `async`) — `await requireAdmin()` (cliente → `/dashboard`),
   depois **busca o usuário real** (`db.user.findUnique`: `name`, `email`, `createdAt`,
-  `avatar.updatedAt`) e passa por props aos forms client. Formata "Membro desde" no servidor
+  `avatar.updatedAt`) **e a lista de projetos** (`listProjects()`, mapeada p/ um DTO plano com
+  `lastPolledAt` ISO) + `hasToken = Boolean(env.GITHUB_PAT)`. Formata "Membro desde" no servidor
   (evita drift de locale). Layout em duas colunas: esquerda = `ProfileForm` + `PasswordForm` +
-  `ProjectCard` (mock); direita = ferramentas de admin (mock/estático).
+  `ProjectsManager` (props: `projects`, `hasToken`); direita = ferramentas de admin (mock/estático).
 
 ## O que NÃO vai aqui
 - **Acesso de cliente** — barrado por `requireAdmin`; nunca confiar só na ocultação no sidebar.

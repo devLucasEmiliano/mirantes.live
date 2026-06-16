@@ -1,7 +1,12 @@
 import { ChevronsUpDown } from "lucide-react";
-import { mockProject } from "@/lib/mock-data";
 
-export function ProjectSwitcher() {
+// Exibe o nome real do projeto raiz (vem por prop do AppHeader, que busca no banco).
+// Sem projetos → "Nenhum projeto". Troca de contexto (dropdown) é spec futura.
+export function ProjectSwitcher({
+  projectName,
+}: {
+  projectName: string | null;
+}) {
   return (
     <button
       type="button"
@@ -9,7 +14,7 @@ export function ProjectSwitcher() {
     >
       <span className="size-1.5 rounded-full bg-status-done" />
       <span className="font-mono text-[11px] text-foreground-muted">
-        {mockProject.name}
+        {projectName ?? "Nenhum projeto"}
       </span>
       <ChevronsUpDown className="size-3 text-foreground-muted" />
     </button>

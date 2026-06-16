@@ -7,6 +7,8 @@ que precisam de runtime Node (cookies, banco, Redis) — fora do render de compo
 ## Estrutura
 - `auth/` — login, logout e troca de senha. Ver `auth/DOC.md`.
 - `account/` — perfil e foto (avatar) do usuário logado. Ver `account/DOC.md`.
+- `projects/` — projetos (listar/criar) + item (`[id]` ler/remover) + `[id]/sync` (sincronizar).
+  Ver `projects/DOC.md`.
 - (demais grupos — goals, events, monitoring, stream… — entram nas suas specs.)
 
 ## Arquivos

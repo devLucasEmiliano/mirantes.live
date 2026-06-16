@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { PasswordForm } from "@/components/configuracoes/password-form";
-import { ProjectCard } from "@/components/configuracoes/profile-cards";
 import { ProfileForm } from "@/components/configuracoes/profile-form";
+import {
+  type ProjectListItem,
+  ProjectsManager,
+} from "@/components/configuracoes/projects-manager";
 import {
   DangerZoneCard,
   ProjectSettingsCard,
@@ -12,6 +15,8 @@ import {
 import { AppHeader } from "@/components/layout/app-header";
 import { requireAdmin } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
+import { listProjects } from "@/lib/projects";
 
 export const metadata: Metadata = {
   title: "Configurações — Mirantes.Live",
@@ -51,6 +56,18 @@ export default async function ConfiguracoesPage() {
   });
   if (!user) redirect("/login");
 
+  // Lista de projetos (plain) + se há PAT no servidor — passados ao manager client.
+  const { projects } = await listProjects();
+  const projectItems: ProjectListItem[] = projects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    owner: project.owner,
+    repo: project.repo,
+    defaultBranch: project.defaultBranch,
+    lastPolledAt: project.lastPolledAt?.toISOString() ?? null,
+  }));
+  const hasToken = Boolean(env.GITHUB_PAT);
+
   return (
     <>
       <AppHeader title="Configurações" breadcrumb="Dashboard / Configurações" />
@@ -64,7 +81,7 @@ export default async function ConfiguracoesPage() {
             initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
           />
           <PasswordForm />
-          <ProjectCard />
+          <ProjectsManager projects={projectItems} hasToken={hasToken} />
         </div>
         <div className="flex w-[380px] shrink-0 flex-col gap-5">
           <ReportsCard />

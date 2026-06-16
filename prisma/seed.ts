@@ -23,6 +23,14 @@ const DEV_USERS = [
   },
 ] as const;
 
+// Projeto dev (spec 008): 1 repositório real. Upsert idempotente por (owner, repo).
+// Sem commits/branches/runs aqui — esses vêm do sync (ou do pré-seed e2e por fixtures).
+const DEV_PROJECT = {
+  name: "Mirantes.Live Dashboard",
+  owner: "devlucasemiliano",
+  repo: "mirantes.live",
+} as const;
+
 async function main() {
   console.log("→ Semeando usuários (upsert por email)...");
   for (const user of DEV_USERS) {
@@ -38,6 +46,15 @@ async function main() {
       },
     });
   }
+
+  console.log("→ Semeando projeto dev (upsert por owner/repo)...");
+  await db.project.upsert({
+    where: {
+      owner_repo: { owner: DEV_PROJECT.owner, repo: DEV_PROJECT.repo },
+    },
+    update: { name: DEV_PROJECT.name },
+    create: DEV_PROJECT,
+  });
 
   console.log(
     "→ Gravando snapshot público da home no Redis (home:snapshot)...",

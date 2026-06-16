@@ -1,9 +1,9 @@
 # src/components/configuracoes
 
 ## Propósito
-Cards da tela `/dashboard/configuracoes`. Os dois primeiros (Perfil e Senha) são **funcionais**
-(spec 007): editam dados reais do usuário logado. Os demais (Projetos, ferramentas da coluna
-direita) ainda são visuais/mock e entram em specs próprias (008+).
+Cards da tela `/dashboard/configuracoes`. Perfil e Senha são **funcionais** (spec 007) e
+**Projetos** também (spec 008: lista/adiciona/remove/sincroniza + log de atividade). As
+ferramentas da coluna direita (relatórios, uptime, toggles, zona de perigo) seguem visuais/mock.
 
 ## Estrutura
 Consumidos por `src/app/dashboard/configuracoes/page.tsx`: coluna esquerda (conta/projetos) e
@@ -16,9 +16,16 @@ coluna direita (ferramentas).
   `deriveInitials`). Trata 200/400/401/409 e dá `router.refresh()`. Espelha `login-form`.
 - **`password-form.tsx`** (`"use client"`) — `PasswordForm`: liga ao `POST /api/auth/password`.
   Valida "nova == confirmar" no client **antes** do request; avisa que as outras sessões caem.
+- **`projects-manager.tsx`** (`"use client"`) — `ProjectsManager`: substitui o `ProjectCard` mock.
+  Recebe `projects` (DTO plano) + `hasToken` por props do Server Component. Lista projetos (testid
+  `project-row`), expande um por vez buscando o log via `GET /api/projects/:id` (commits `commit-row`,
+  branches `branch-row`, badge do último run via `deriveRunStatus`). Adiciona (`add-project-owner`/
+  `add-project-repo` → `POST /api/projects`, valida o slug no client antes), sincroniza (`sync-now`
+  → `POST /api/projects/:id/sync`; 409 → "Configure o GITHUB_PAT…") e remove (`DELETE`). Após cada
+  mutação: `router.refresh()`. Badge de conexão: Conectado / Sem PAT / Nunca sincronizado.
 - **`profile-cards.tsx`** (compartilhado, **sem** `"use client"`) — presentacionais reusados pelos
-  forms e por `ProjectCard`: `CardShell`, `ReadOnlyField` (exportados) + `ProjectCard` (projetos,
-  ainda mock). Não usa mais `mockUser`.
+  forms e pelo `ProjectsManager`: `CardShell`, `ReadOnlyField` (exportados). Não usa mais `mockUser`
+  nem hospeda o antigo `ProjectCard` (removido na spec 008).
 - **`tools-cards.tsx`** (server) — coluna direita: `ReportsCard`, `UptimeMonitoringCard`,
   `ProjectSettingsCard`, `DangerZoneCard`. Ainda **sem handler** (mock).
 - **`toggle.tsx`** (`"use client"`) — `Toggle`: switch acessível, sem persistência (mock).

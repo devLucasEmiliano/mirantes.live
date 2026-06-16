@@ -8,6 +8,11 @@ Regras de operação para este repositório. Este arquivo governa **como** qualq
 
 Toda implementação **deve** usar exclusivamente:
 
+- **Bun** — gerenciador de pacotes **e** runtime do projeto. **Nunca usar `npm`/`npx`/`yarn`/`pnpm`** — quebram o `bun.lock`.
+  - Instalar deps: `bun install`
+  - Rodar binário: `bunx <bin>` (ex. `bunx prisma generate`)
+  - Rodar script: `bun run <script>` (ex. `bun run dev`, `bun run db:migrate`)
+  - O Prisma Client é gerado pelo script `postinstall` (`prisma generate`); o bun **não** roda postinstall de _dependências_, por isso a geração mora num script próprio do projeto. Se aparecer `Cannot find module '.prisma/client/default'`, rode `bunx prisma generate`.
 - **Next.js** (App Router) — único app do projeto (não é monorepo).
 - **TypeScript**.
 - **Tailwind CSS** + **shadcn/ui** + **Lucide** (ícones).

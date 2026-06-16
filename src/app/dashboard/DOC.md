@@ -16,7 +16,11 @@ as páginas/subrotas são as telas do produto. Só acessível com sessão válid
   extra (`name` + `avatar.updatedAt`, **sem** o blob) e passa `{email, role, name, hasAvatar,
   avatarVersion}` ao `Sidebar` p/ o chip de perfil. O `proxy.ts` faz só o gate ótimista por
   assinatura — a checagem autoritativa é aqui.
-- **`page.tsx`** — Visão Geral; dados ainda do mock (`@/lib/mock-data`).
+- **`page.tsx`** (Server Component, `async`) — Visão Geral. **Reais (spec 008):** card "Commits da
+  Semana" (`weeklyCommitStats()` + `formatWeeklyDelta`) e bloco "último commit sincronizado"
+  (`latestCommit()`, acima do `TimelineFeed`). O bloco mostra sha/mensagem/autor/tempo — **não** o
+  nome do projeto (evita colidir com o switcher no header). Metas/saúde/uptime seguem mock
+  (`@/lib/mock-data`).
 
 ## O que NÃO vai aqui
 - **Sem checagem de papel "solta" no layout** — o gating por papel mora no DAL

@@ -17,6 +17,9 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
       REDIS_URL: process.env.TEST_REDIS_URL ?? "",
       SESSION_SECRET: process.env.SESSION_SECRET ?? "",
+      // Hermético: força "sem PAT" no teste (cobre o caso no_token do syncProject)
+      // mesmo que o Bun auto-carregue um .env com GITHUB_PAT preenchido.
+      GITHUB_PAT: "",
     },
   },
 });

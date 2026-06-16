@@ -18,12 +18,19 @@ Componentes avulsos; `sidebar` é cliente, os demais são de apresentação.
   `flex-1`), sempre visível mesmo quando a `<main>` rola.
 - **`public-header.tsx`** — cabeçalho da home `/`. Recebe o snapshot
   (`projectName`, `tagline`, `live`, `updatedAt`) e renderiza marca, selo AO VIVO
-  (quando `live`) e o horário do snapshot.
-- **`app-header.tsx`** — cabeçalho interno (título + breadcrumb) das telas autenticadas.
+  (quando `live`) e o horário do snapshot. Passa `projectName` (do snapshot) ao `ProjectSwitcher`
+  — a home é pública/sem sessão, então **não** consulta o banco.
+- **`app-header.tsx`** (Server Component, `async`, spec 008) — cabeçalho interno (título +
+  breadcrumb) das telas autenticadas. Busca o **nome do projeto raiz** (`db.project.findFirst`,
+  `orderBy createdAt asc`, `select name`) e passa ao `ProjectSwitcher`.
 - **`live-tag.tsx`** — selo "AO VIVO".
-- **`project-switcher.tsx`** — seletor de projeto (mock).
+- **`project-switcher.tsx`** — exibe o **nome real** do projeto (prop `projectName`); sem projetos
+  → "Nenhum projeto". Sem dropdown de troca de contexto ainda (spec futura).
 
 ## O que NÃO vai aqui
 - **`sidebar.tsx` não importa o DAL `server-only`** — recebe o usuário já resolvido por
   prop (importar `session.ts` quebraria o bundle do cliente).
-- **Sem acesso a banco/segredos** — componentes de layout são apresentação.
+- **`project-switcher.tsx`/`sidebar.tsx` não acessam o banco** — recebem dados por prop (o
+  `AppHeader`, que é Server Component, é quem consulta). O `app-header.tsx` é a exceção
+  consciente: faz 1 query leve (só `name`) p/ alimentar o switcher.
+- **Sem segredos** — nada de PAT/credenciais nestes componentes.
