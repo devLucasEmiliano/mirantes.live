@@ -20,10 +20,24 @@ model User {
   email        String    @unique
   passwordHash String    @map("password_hash") // argon2id
   role         String // 'admin' | 'client'
+  name         String? // nome de exibição (perfil) — nullable/aditivo
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]
+  avatar       Avatar? // foto de perfil (bytea) em tabela lateral
 
   @@map("users")
+}
+
+/// Foto de perfil (upload) guardada como `bytea` — sem storage externo (§0). Tabela
+/// lateral 1:1 p/ NÃO carregar a imagem em todo getCurrentUser() (include: user).
+model Avatar {
+  userId    String   @id @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Bytes // bytea — bytes crus da imagem
+  mimeType  String   @map("mime_type")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("avatars")
 }
 
 /// Sessão por banco. O `id` é o token que vai (assinado) no cookie httpOnly.

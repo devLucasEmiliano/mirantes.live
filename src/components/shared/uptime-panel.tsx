@@ -82,8 +82,8 @@ export function UptimeDaysBar({
 export function UptimePanel() {
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-sm font-bold text-foreground-primary">
+      <div className="flex h-8 items-center justify-between">
+        <h2 className="font-display text-base font-bold text-foreground-primary">
           Uptime do Projeto
         </h2>
         <span className="font-body text-xs font-medium text-accent-primary">

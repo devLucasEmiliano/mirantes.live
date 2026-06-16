@@ -1,5 +1,6 @@
 import { PublicHeader } from "@/components/layout/public-header";
 import { GoalsList } from "@/components/shared/goals-list";
+import PixelBlast from "@/components/shared/pixel-blast";
 import { ProgressRing } from "@/components/shared/progress-ring";
 import { StatCard } from "@/components/shared/stat-card";
 import { TimelineFeed } from "@/components/shared/timeline-feed";
@@ -23,7 +24,31 @@ export default async function HomePage() {
   const todoGoals = totalGoals - completedGoals - inProgressGoals;
 
   return (
-    <div className="flex min-h-dvh flex-1 flex-col bg-surface-primary">
+    <div className="relative isolate flex min-h-dvh flex-1 flex-col overflow-hidden bg-surface-primary">
+      {/* Fundo WebGL decorativo (PixelBlast). Camada absoluta atrás de todo o
+          conteúdo; o conteúdo abaixo fica em z-10 para receber os cliques. */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <PixelBlast
+          variant="square"
+          pixelSize={3}
+          color="#b3b1b1"
+          patternScale={4}
+          patternDensity={1.25}
+          pixelSizeJitter={0}
+          enableRipples={false}
+          rippleSpeed={0.4}
+          rippleThickness={0.12}
+          rippleIntensityScale={1.5}
+          liquid={false}
+          liquidStrength={0.12}
+          liquidRadius={1.2}
+          liquidWobbleSpeed={5}
+          speed={0.75}
+          edgeFade={0.25}
+          transparent
+        />
+      </div>
+
       <PublicHeader
         projectName={snapshot.projectName}
         tagline={snapshot.tagline}
@@ -31,7 +56,7 @@ export default async function HomePage() {
         updatedAt={snapshot.updatedAt}
       />
 
-      <div className="flex gap-5 px-10 py-6">
+      <div className="relative z-10 flex gap-5 px-10 py-6">
         <StatCard title="Total de Metas">
           <span className="font-mono text-[32px] font-bold leading-none text-foreground-primary">
             {totalGoals}

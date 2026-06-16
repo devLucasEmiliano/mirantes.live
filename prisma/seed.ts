@@ -9,11 +9,17 @@ import { redis } from "../src/lib/redis";
 // que carrega o .env antes — por isso process.env tem DATABASE_URL/REDIS_URL/etc.
 
 const DEV_USERS = [
-  { email: "admin@mirantes.live", password: "admin-dev-2026", role: "admin" },
+  {
+    email: "admin@mirantes.live",
+    password: "admin-dev-2026",
+    role: "admin",
+    name: "Admin Mirantes",
+  },
   {
     email: "cliente@mirantes.live",
     password: "cliente-dev-2026",
     role: "client",
+    name: "Lucas Cliente",
   },
 ] as const;
 
@@ -23,22 +29,23 @@ async function main() {
     const passwordHash = await hashPassword(user.password);
     await db.user.upsert({
       where: { email: user.email },
-      update: { passwordHash, role: user.role },
-      create: { email: user.email, passwordHash, role: user.role },
+      update: { passwordHash, role: user.role, name: user.name },
+      create: {
+        email: user.email,
+        passwordHash,
+        role: user.role,
+        name: user.name,
+      },
     });
   }
 
-  console.log(
-    "→ Gravando snapshot público da home no Redis (home:snapshot)...",
-  );
+  console.log("→ Gravando snapshot público da home no Redis (home:snapshot)...");
   const snapshot = await writeHomeSnapshot();
 
   console.log("\n✓ Seed concluído.\n");
   console.log("Credenciais de DESENVOLVIMENTO (não usar em produção):");
   for (const user of DEV_USERS) {
-    console.log(
-      `  • ${user.role.padEnd(6)}  ${user.email}  /  ${user.password}`,
-    );
+    console.log(`  • ${user.role.padEnd(6)}  ${user.email}  /  ${user.password}`);
   }
   console.log(
     `\nHome snapshot: "${snapshot.projectName}" (live=${snapshot.live}).`,
