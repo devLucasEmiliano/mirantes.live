@@ -1,8 +1,10 @@
 import type {
   GhBranch,
   GhCommit,
+  GhRepository,
   GhWorkflowRun,
   GitHubClient,
+  GitHubError,
 } from "@/lib/github/client";
 
 export function makeStubClient(data: {
@@ -11,6 +13,8 @@ export function makeStubClient(data: {
   commits: GhCommit[];
   branches: GhBranch[];
   runs: GhWorkflowRun[];
+  userRepos?: GhRepository[];
+  userReposError?: GitHubError;
 }): GitHubClient {
   return {
     getRepo: async () => ({
@@ -20,6 +24,10 @@ export function makeStubClient(data: {
     listCommits: async () => data.commits,
     listBranches: async () => data.branches,
     listWorkflowRuns: async () => data.runs,
+    listRepos: async () => {
+      if (data.userReposError) throw data.userReposError;
+      return data.userRepos ?? [];
+    },
   };
 }
 
@@ -53,6 +61,21 @@ export function ghRun(
     html_url: `https://github.com/o/r/actions/runs/${id}`,
     run_started_at: "2026-06-10T12:00:00Z",
     updated_at: "2026-06-10T12:05:00Z",
+    ...overrides,
+  };
+}
+
+export function ghRepo(
+  owner: string,
+  repo: string,
+  overrides: Partial<GhRepository> = {},
+): GhRepository {
+  return {
+    name: repo,
+    full_name: `${owner}/${repo}`,
+    private: false,
+    default_branch: "main",
+    owner: { login: owner },
     ...overrides,
   };
 }

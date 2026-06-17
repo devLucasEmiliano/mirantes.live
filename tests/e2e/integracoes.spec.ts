@@ -81,3 +81,39 @@ test("cliente cria o seu projeto e não toca no de outro (404)", async ({
     404,
   );
 });
+
+test("admin adiciona um repositório pelo seletor (OAuth faked)", async ({
+  page,
+}) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  const start = await page.request.get("/api/github/oauth/start", {
+    maxRedirects: 0,
+  });
+  const state = new URL(start.headers().location).searchParams.get("state");
+  await page.request.get(
+    `/api/github/oauth/callback?code=fake&state=${state}`,
+    {
+      maxRedirects: 0,
+    },
+  );
+
+  await page.goto("/dashboard/integracoes");
+
+  // O seletor lista os repos da conta conectada (faked). 'sandbox' não é adicionado por
+  // este teste → permanece como opção mesmo em reexecuções.
+  await expect(
+    page
+      .getByTestId("add-project-repo-option")
+      .filter({ hasText: "e2e-bot/sandbox" }),
+  ).toBeVisible();
+
+  // Adiciona 'hello-world' pelo seletor (idempotente: clica só se ainda for opção; o
+  // banco do e2e não é resetado entre execuções).
+  const hello = page
+    .getByTestId("add-project-repo-option")
+    .filter({ hasText: "e2e-bot/hello-world" });
+  if (await hello.count()) await hello.click();
+  await expect(
+    page.getByTestId("project-row").filter({ hasText: "hello-world" }),
+  ).toBeVisible();
+});

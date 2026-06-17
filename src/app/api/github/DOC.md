@@ -2,13 +2,16 @@
 
 ## Propósito
 Route Handlers da integração **GitHub por usuário** (spec 009): o fluxo OAuth (conectar a
-conta) e a gestão da conexão (desconectar). Cada usuário gere apenas a SUA conexão; o token
+conta), a gestão da conexão (desconectar) e a listagem dos repos da conta (seletor de
+projetos). Cada usuário gere apenas a SUA conexão; o token
 é cifrado em repouso (mora em `@/lib/github/*`, nunca na resposta).
 
 ## Estrutura
 - `oauth/` — fluxo OAuth do GitHub (`start/` redireciona ao authorize; `callback/` troca o
   code e grava a conexão). Ver `oauth/DOC.md`.
 - `connection/` — gestão da conexão existente (`DELETE` desconecta). Ver `connection/DOC.md`.
+- `repos/` — `GET` lista os repositórios da conta conectada (seletor de projetos; spec 010).
+  Ver `repos/DOC.md`.
 
 ## Arquivos
 Nenhum arquivo direto nesta pasta; só subgrupos com `route.ts`.

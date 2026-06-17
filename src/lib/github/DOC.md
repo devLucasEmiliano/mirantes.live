@@ -7,7 +7,7 @@ sincronização idempotente que persiste commits/branches/runs de um projeto no 
 Compartilhado pelo botão manual (API) e pelo worker de polling.
 
 ## Estrutura
-Arquivos avulsos; sem subpastas. `map.ts` é puro (unit); `sync.ts`/`connection.ts` tocam
+Arquivos avulsos; sem subpastas. `map.ts` é puro (unit); `sync.ts`/`connection.ts`/`repos.ts` tocam
 o banco (integração); `oauth.ts` é o único que fala com o github.com no fluxo OAuth;
 `oauth-state.ts` é puro (HMAC, sem rede/estado).
 
@@ -36,12 +36,19 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `invalid_token` (decifra lança — integridade do GCM) ou `{ ok:true, token }`. Depende
   de `@/lib/db` e `@/lib/crypto/secret`.
 - **`client.ts`** — único ponto HTTP (SPEC §7). `fetch` nativo, **sem Octokit** (§0).
-  Tipos `GhCommit`/`GhBranch`/`GhWorkflowRun`, interface injetável `GitHubClient`,
+  Tipos `GhCommit`/`GhBranch`/`GhWorkflowRun`/`GhRepository`, interface injetável `GitHubClient`,
   `class GitHubError` e `createGitHubClient(token: string)` — **exige** o token (OAuth, do
   dono do projeto) e retorna **sempre** um `GitHubClient` (sem default de env, sem
   `null`). O token vai **só** no header `Authorization`; nunca em log, URL ou mensagem de
   erro (SPEC §11). Métodos: `getRepo`, `listCommits`, `listBranches`, `listWorkflowRuns`
-  (envelope `{ workflow_runs }`).
+  (envelope `{ workflow_runs }`) e `listRepos` (`GET /user/repos` — repos da conta do
+  usuário p/ o seletor; spec 010).
+- **`repos.ts`** — serviço que lista os repos da conta conectada do usuário p/ o seletor de
+  projetos (spec 010). `listUserRepos(userId, client?)`: resolve o token do dono PRIMEIRO (sem
+  conexão → `not_connected`); depois, se `GITHUB_OAUTH_FAKE` → `FAKE_REPOS` (e2e sem rede),
+  senão `createGitHubClient(token).listRepos()` → mapeia p/ `UserRepo`
+  (`{owner,repo,fullName,private,defaultBranch}`); `GitHubError` → `github_error`. Cap de 100
+  (a entrada manual da UI cobre a cauda). Depende de `client`/`connection`/`env`.
 - **`map.ts`** — puro, unit-testável. `mapCommit` (subject = 1ª linha; autor cascata
   nome→login→"desconhecido"), `summarizeCommitBatch`, `deriveRunStatus` (status+conclusion →
   badge), `isValidRepoSlug` (charset `A-Za-z0-9._-`), `formatWeeklyDelta`. **Sem** I/O — pode

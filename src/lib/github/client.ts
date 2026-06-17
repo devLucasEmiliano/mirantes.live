@@ -43,6 +43,15 @@ export interface RepoRef {
   repo: string;
 }
 
+/** Repositório da conta do usuário (subset de GET /user/repos) p/ o seletor de projetos. */
+export interface GhRepository {
+  name: string;
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  owner: { login: string };
+}
+
 /** Contrato injetável: a impl real fala com a API; os testes injetam um stub. */
 export interface GitHubClient {
   getRepo(input: RepoRef): Promise<{ name: string; defaultBranch: string }>;
@@ -53,6 +62,8 @@ export interface GitHubClient {
   listWorkflowRuns(
     input: RepoRef & { perPage?: number },
   ): Promise<GhWorkflowRun[]>;
+  /** Repos acessíveis ao usuário do token (owner + colaborador + org). Cap de 1 página. */
+  listRepos(input?: { perPage?: number }): Promise<GhRepository[]>;
 }
 
 /** Erro de borda do GitHub (rede/HTTP). Mensagem nunca contém o PAT. */
@@ -132,6 +143,14 @@ export function createGitHubClient(token: string): GitHubClient {
         auth,
       );
       return data.workflow_runs;
+    },
+    async listRepos({ perPage = 100 } = {}) {
+      const params = new URLSearchParams({
+        per_page: String(perPage),
+        sort: "updated",
+        affiliation: "owner,collaborator,organization_member",
+      });
+      return ghGet<GhRepository[]>(`/user/repos?${params.toString()}`, auth);
     },
   };
 }

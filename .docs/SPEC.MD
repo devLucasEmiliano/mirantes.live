@@ -219,6 +219,7 @@ estático. O conteúdo do snapshot é não sensível.
 | GET | `/api/github/oauth/start` | autenticado | inicia OAuth: grava `state` (cookie httpOnly) + 307 ao authorize do GitHub |
 | GET | `/api/github/oauth/callback` | autenticado | valida `state`+code, troca pelo token, grava conexão cifrada; 303 p/ Integrações |
 | DELETE | `/api/github/connection` | autenticado | desconecta a conta do GitHub do usuário (idempotente) |
+| GET | `/api/github/repos` | autenticado | lista os repos da conta conectada (seletor de projetos); `not_connected`→409, `github_error`→502 |
 | GET/PATCH | `/api/settings` | admin | retenção, intervalos, PAT |
 | GET | `/api/stream` | autenticado | canal SSE |
 
@@ -310,6 +311,11 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 - Token **OAuth do dono** do projeto, resolvido por `resolveUserToken(project.user_id)` (decifra a `github_connections` em memória); **nunca** em log, resposta de API ou URL (só no header Authorization). Sem conexão/token inválido → `not_connected`.
 - Cliente HTTP: `fetch` nativo, **sem Octokit** (CLAUDE.md §0); injetável p/ teste com stub.
 - **Conexão OAuth (spec 009):** `GET /api/github/oauth/start` gera um `state` assinado (HMAC + cookie httpOnly) e 307 ao GitHub; o `callback` valida o `state` (assinatura + igualdade byte-a-byte com o cookie + dono = usuário atual), troca o `code` pelo token (`src/lib/github/oauth.ts`; faked no e2e via `GITHUB_OAUTH_FAKE`) e grava a conexão cifrada (`src/lib/github/connection.ts`). Escopo OAuth: `repo read:user`.
+- **Seletor de repositórios (spec 010):** `GET /api/github/repos` → `listUserRepos(userId)` →
+  `client.listRepos()` (`GET /user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member`),
+  **cap de 100** (a entrada manual da UI cobre a cauda); faked **após** a resolução do token
+  (não-conectado → `not_connected`). A UI esconde os repos já adicionados; o campo *Nome* saiu do
+  fluxo de adicionar (nome = repo).
 
 ---
 
