@@ -6,34 +6,28 @@ import { StatCard } from "@/components/shared/stat-card";
 import { TimelineFeed } from "@/components/shared/timeline-feed";
 import { UptimePanel } from "@/components/shared/uptime-panel";
 import { requireUser } from "@/lib/auth/session";
+import { listEvents } from "@/lib/events";
 import { formatWeeklyDelta } from "@/lib/github/map";
-import { mockEvents, mockGoals, mockSummary } from "@/lib/mock-data";
-import { latestCommit, scopeForUser, weeklyCommitStats } from "@/lib/projects";
+import { mockGoals, mockSummary } from "@/lib/mock-data";
+import { scopeForUser, weeklyCommitStats } from "@/lib/projects";
+import { resolveSelectedProject } from "@/lib/projects/select";
 
 export const metadata: Metadata = {
   title: "Visão Geral — Mirantes.Live",
 };
 
-/** Tempo relativo (server-render) p/ o bloco de último commit. */
-function relativeTime(date: Date): string {
-  const mins = Math.floor((Date.now() - date.getTime()) / 60_000);
-  if (mins < 1) return "agora";
-  if (mins < 60) return `há ${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `há ${hours} h`;
-  return `há ${Math.floor(hours / 24)} d`;
-}
-
 export default async function DashboardPage() {
   const done = mockSummary.completedGoals;
   const total = mockSummary.totalGoals;
 
-  // Reais (spec 008/009): card "Commits da Semana" + bloco "último commit", ESCOPADOS
-  // pelo papel (cliente só os seus). Resto segue mock.
+  // Reais (spec 008/012): card "Commits da Semana" + "Atividade Recente", ESCOPADOS pelo papel
+  // e filtrados pelo projeto selecionado (cookie; fallback = mais antigo). Resto segue mock.
   const scope = scopeForUser(await requireUser());
-  const [weekly, latest] = await Promise.all([
-    weeklyCommitStats(scope),
-    latestCommit(scope),
+  const selected = await resolveSelectedProject(scope);
+  const projectId = selected?.id;
+  const [weekly, recent] = await Promise.all([
+    weeklyCommitStats(scope, projectId),
+    listEvents(scope, { projectId, limit: 7 }),
   ]);
   const weeklyDelta = formatWeeklyDelta(weekly.count, weekly.previousCount);
 
@@ -107,24 +101,8 @@ export default async function DashboardPage() {
       <div className="flex flex-1 gap-6 px-8 pb-8">
         <GoalsList goals={mockGoals.slice(0, 3)} />
         <div className="flex w-[300px] shrink-0 flex-col gap-6">
-          {latest && (
-            <div className="flex flex-col gap-2 rounded-sm bg-surface-card p-5">
-              <span className="font-display text-[13px] font-medium tracking-[0.3px] text-foreground-muted">
-                Último commit sincronizado
-              </span>
-              <span className="font-mono text-xs text-accent-primary">
-                {latest.sha.slice(0, 7)}
-              </span>
-              <span className="line-clamp-2 text-[13px] text-foreground-primary">
-                {latest.message}
-              </span>
-              <span className="font-body text-[11px] text-foreground-muted">
-                {latest.author} · {relativeTime(latest.committedAt)}
-              </span>
-            </div>
-          )}
           <TimelineFeed
-            events={mockEvents.filter((e) => e.source === "goal").slice(0, 7)}
+            events={recent.events}
             seeAllHref="/dashboard/timeline"
           />
         </div>

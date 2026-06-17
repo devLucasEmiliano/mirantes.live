@@ -11,7 +11,9 @@ que precisam de runtime Node (cookies, banco, Redis) — fora do render de compo
   Ver `projects/DOC.md`.
 - `github/` — integração GitHub por usuário: fluxo OAuth (`oauth/start`, `oauth/callback`) e
   conexão (`connection` desconecta). Ver `github/DOC.md`.
-- (demais grupos — goals, events, monitoring, stream… — entram nas suas specs.)
+- `events/` — `GET /api/events`: timeline paginada e escopada por papel (cursor). Ver
+  `events/DOC.md`.
+- (demais grupos — goals, monitoring, stream… — entram nas suas specs.)
 
 ## Arquivos
 Nenhum arquivo direto nesta pasta; só subgrupos com `route.ts`.

@@ -1,4 +1,10 @@
 import { db } from "@/lib/db";
+import {
+  commitToEvent,
+  type EventInput,
+  runToEvent,
+  shouldEmitRunEvent,
+} from "@/lib/events/emit";
 import { createGitHubClient, type GitHubClient, GitHubError } from "./client";
 import { resolveUserToken } from "./connection";
 import { mapCommit } from "./map";
@@ -58,9 +64,29 @@ export async function syncProject(
       author: c.author,
       committedAt: c.committedAt,
     }));
+    // SHAs já no banco ANTES do insert → os realmente novos viram evento `commit.created`.
+    // (Idempotência da emissão: re-sync não reemite, mesmo com o stub ignorando `since`.)
+    const existingShas = new Set(
+      (
+        await db.commit.findMany({
+          where: { projectId, sha: { in: commitRows.map((c) => c.sha) } },
+          select: { sha: true },
+        })
+      ).map((row) => row.sha),
+    );
     const insertedCommits = (
       await db.commit.createMany({ data: commitRows, skipDuplicates: true })
     ).count;
+    const commitEvents: EventInput[] = commitRows
+      .filter((c) => !existingShas.has(c.sha))
+      .map((c) =>
+        commitToEvent(projectId, project.repo, {
+          sha: c.sha,
+          message: c.message,
+          author: c.author,
+          committedAt: c.committedAt,
+        }),
+      );
 
     // 2) Branches — upsert por (project, name); marca a default; remove as sumidas.
     const ghBranches = await gh.listBranches(ref);
@@ -78,8 +104,18 @@ export async function syncProject(
     });
 
     // 3) Workflow runs — upsert por (project, run_id). run_id estoura int32 → BigInt.
+    //    findUnique ANTES do upsert p/ decidir o evento: `ci.run` só na transição p/ `completed`
+    //    (o upsert sobrescreveria o status anterior que `shouldEmitRunEvent` precisa ler).
     const ghRuns = await gh.listWorkflowRuns(ref);
+    const runEvents: EventInput[] = [];
     for (const r of ghRuns) {
+      const prev = await db.workflowRun.findUnique({
+        where: { projectId_runId: { projectId, runId: BigInt(r.id) } },
+        select: { status: true },
+      });
+      if (shouldEmitRunEvent(prev, { status: r.status })) {
+        runEvents.push(runToEvent(projectId, r));
+      }
       const fields = {
         name: r.name,
         headBranch: r.head_branch,
@@ -113,7 +149,23 @@ export async function syncProject(
       },
     });
 
-    // TODO(spec-timeline): emitir evento commit.batch + PUBLISH goals:updates
+    // Eventos da Timeline (spec 012): `commit.created` (novos) + `ci.run` (concluídos). Sem
+    // transação/PUBLISH aqui — o wrapper transacional + PUBLISH goals:updates entra na 014.
+    const eventInputs = [...commitEvents, ...runEvents];
+    if (eventInputs.length > 0) {
+      await db.event.createMany({
+        data: eventInputs.map((e) => ({
+          source: e.source,
+          type: e.type,
+          refId: e.refId,
+          projectId: e.projectId,
+          title: e.title,
+          detail: e.detail,
+          visibleToClient: e.visibleToClient,
+          createdAt: e.createdAt,
+        })),
+      });
+    }
     return {
       ok: true,
       inserted: {

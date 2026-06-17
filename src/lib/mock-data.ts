@@ -3,13 +3,7 @@
 // tempo médio 3.2d, 5/5 serviços online, 142ms, 3 incidentes em 30 dias.
 // Nenhum dado vem de banco — esta camada será substituída pela API real.
 
-import type {
-  Goal,
-  Incident,
-  Service,
-  ServiceState,
-  TimelineEvent,
-} from "./types";
+import type { Goal, Incident, Service, ServiceState } from "./types";
 
 export const mockUser = {
   name: "Lucas Cliente",
@@ -180,108 +174,6 @@ export const mockGoals: Goal[] = [
     progress: 100,
     dueDate: "2026-05-30",
     description: "PRD, SPEC e DOC.md por pasta atualizados.",
-  },
-];
-
-export const mockEvents: TimelineEvent[] = [
-  {
-    id: 124,
-    source: "goal",
-    type: "goal.completed",
-    title: "API de Autenticação concluída",
-    detail: "Progresso atualizado para 100%",
-    timestamp: "Hoje, 14:32",
-    visibleToClient: true,
-  },
-  {
-    id: 123,
-    source: "commit",
-    type: "commit.batch",
-    title: "8 commits em mirantes.live",
-    detail: "feat: canal SSE com replay por Last-Event-ID",
-    timestamp: "Hoje, 12:50",
-    visibleToClient: true,
-  },
-  {
-    id: 122,
-    source: "goal",
-    type: "goal.updated",
-    title: "Dashboard Principal atualizado",
-    detail: "Progresso: 30% → 40%",
-    timestamp: "Hoje, 11:15",
-    visibleToClient: true,
-  },
-  {
-    id: 121,
-    source: "goal",
-    type: "goal.created",
-    title: "CI/CD Pipeline criada",
-    detail: "Nova meta adicionada",
-    timestamp: "Ontem, 18:45",
-    visibleToClient: true,
-  },
-  {
-    id: 120,
-    source: "incident",
-    type: "incident.resolved",
-    title: "Incidente resolvido: API Backend",
-    detail: "Duração: 12 min — latência acima do threshold",
-    timestamp: "Ontem, 18:40",
-    visibleToClient: true,
-  },
-  {
-    id: 119,
-    source: "goal",
-    type: "goal.completed",
-    title: "Tela de Login concluída",
-    detail: "Status alterado para concluído",
-    timestamp: "Ontem, 16:20",
-    visibleToClient: true,
-  },
-  {
-    id: 118,
-    source: "commit",
-    type: "commit.batch",
-    title: "5 commits em mirantes.live",
-    detail: "fix: anti-flapping no worker de polling",
-    timestamp: "Ontem, 11:03",
-    visibleToClient: true,
-  },
-  {
-    id: 117,
-    source: "goal",
-    type: "goal.updated",
-    title: "Endpoints de Metas atualizado",
-    detail: "Progresso: 45% → 60%",
-    timestamp: "28 Mai, 10:30",
-    visibleToClient: true,
-  },
-  {
-    id: 116,
-    source: "goal",
-    type: "goal.created",
-    title: "Configuração Docker criada",
-    detail: "Nova meta adicionada",
-    timestamp: "27 Mai, 09:00",
-    visibleToClient: true,
-  },
-  {
-    id: 115,
-    source: "goal",
-    type: "goal.updated",
-    title: "Integração Redis/SSE",
-    detail: "Data prevista definida: 15 Jun",
-    timestamp: "26 Mai, 15:45",
-    visibleToClient: true,
-  },
-  {
-    id: 114,
-    source: "incident",
-    type: "incident.resolved",
-    title: "Incidente resolvido: Banco de Dados",
-    detail: "Duração: 38 min — conexão perdida",
-    timestamp: "21 Mai, 08:15",
-    visibleToClient: false,
   },
 ];
 

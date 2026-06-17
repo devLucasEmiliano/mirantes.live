@@ -1,7 +1,6 @@
 import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { LiveTag } from "./live-tag";
-import { ProjectSwitcher } from "./project-switcher";
 
 interface PublicHeaderProps {
   projectName: string;
@@ -33,7 +32,13 @@ export function PublicHeader({
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <ProjectSwitcher projectName={projectName} />
+        {/* Home pública = anônima, projeto único da vitrine → chip estático (sem dropdown). */}
+        <span className="flex items-center gap-1.5 px-1 py-0.5">
+          <span className="size-1.5 rounded-full bg-status-done" />
+          <span className="font-mono text-[11px] text-foreground-muted">
+            {projectName}
+          </span>
+        </span>
         {live && <LiveTag />}
         {updatedLabel && (
           <span className="font-body text-[11px] text-foreground-muted">

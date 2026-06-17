@@ -87,6 +87,7 @@ model Project {
   commits       Commit[]
   branches      Branch[]
   workflowRuns  WorkflowRun[]
+  events        Event[]
 
   @@unique([userId, owner, repo])
   @@index([userId])
@@ -142,4 +143,26 @@ model WorkflowRun {
   @@unique([projectId, runId])
   @@index([projectId, runStartedAt])
   @@map("workflow_runs")
+}
+
+/// Timeline unificada (SPEC §2.4). `id` bigint monotônico = âncora de Last-Event-ID (SSE, spec 014).
+/// DIVERGÊNCIA do SPEC §2.4/§2.8: ganha `project_id` (nullable) p/ o seletor filtrar por projeto
+/// e p/ a home pública mostrar só a vitrine (spec 012). `null` = evento global (ex. meta sem projeto).
+/// `id` é BigInt → NÃO é JSON-safe: o DTO serializa com `String(id)` (mesmo padrão de WorkflowRun.runId).
+model Event {
+  id              BigInt   @id @default(autoincrement())
+  source          String // goal | commit | incident
+  type            String // commit.created | ci.run | goal.* | incident.*
+  refId           String?  @map("ref_id") // sha do commit / String(run_id) / goal id
+  projectId       String?  @map("project_id") @db.Uuid
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title           String
+  detail          String?
+  visibleToClient Boolean  @default(true) @map("visible_to_client")
+  createdAt       DateTime @default(now()) @map("created_at") // = tempo da ATIVIDADE (commit/run)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([visibleToClient, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("events")
 }

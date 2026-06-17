@@ -6,7 +6,9 @@ Raiz do App Router (Next 16): rotas, layouts e Route Handlers. `/` é pública (
 
 ## Estrutura
 - `page.tsx` — **home pública** `/`. `async` + `force-dynamic`; lê `readHomeSnapshot()`
-  do Redis e alimenta o `PublicHeader`. Cards/listas abaixo ainda são mock.
+  do Redis (alimenta o `PublicHeader`) **e** a "Atividade Recente" real via
+  `listShowcaseEvents(7)` (vitrine = projeto mais antigo de um admin, só visível); cards/metas/
+  uptime seguem mock.
 - `layout.tsx` — layout raiz (html/body, fontes, estilos globais).
 - `globals.css` — tokens de design e Tailwind.
 - `login/` — `page.tsx` da tela de login (renderiza `LoginForm`).
@@ -16,7 +18,10 @@ Raiz do App Router (Next 16): rotas, layouts e Route Handlers. `/` é pública (
 - `api/` — Route Handlers. Ver `api/DOC.md`.
 
 ## Arquivos (auth — task 003)
-- `page.tsx` — home servida do snapshot Redis (SPEC §1/§4).
+- `page.tsx` — home servida do snapshot Redis (SPEC §1/§4). A "Atividade Recente" agora é
+  **real** (spec 012): `await listShowcaseEvents(7)` (eventos `visibleToClient:true` da vitrine),
+  embrulhado em `.catch(() => [])` p/ **degradar a feed vazio** se o Postgres falhar — preserva
+  o fallback estático do snapshot. Cards/metas/uptime seguem mock.
 - `dashboard/layout.tsx` — guarda de sessão + injeção do usuário no sidebar.
 - `dashboard/configuracoes/page.tsx` — `await requireAdmin()` (cliente → `/dashboard`).
 

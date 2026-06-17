@@ -26,13 +26,14 @@ export interface Goal {
 export type EventSource = "goal" | "commit" | "incident";
 
 export interface TimelineEvent {
-  id: number;
+  /** `events.id` (bigint) serializado com String() — JSON-safe; âncora do SSE (spec 014). */
+  id: string;
   source: EventSource;
   type: string;
   title: string;
   detail?: string;
-  /** Timestamp relativo já formatado para exibição (mock). */
-  timestamp: string;
+  /** ISO 8601 — tempo da ATIVIDADE (commit/run). Formatado na UI via `events/format.ts`. */
+  createdAt: string;
   visibleToClient: boolean;
 }
 

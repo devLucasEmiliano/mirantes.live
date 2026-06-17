@@ -9,7 +9,7 @@
 
 Sistema para um desenvolvedor solo apresentar o progresso de projetos a clientes. O **admin** cria e edita conteúdo e **vê tudo**; o **cliente** visualiza, com atualização em tempo real (sem refresh). **Projetos têm dono** (spec 009): cada cliente vê e gere **apenas os seus**; o admin vê todos.
 
-**Projeto é a raiz do domínio** (spec 008): cada **Projeto = exatamente 1 repositório GitHub**. O sistema é **multi-projeto** — metas, atividades (commits) e quedas penduram em `project_id` (cada nessas suas specs). Por ora a fundação cria `Project` + dados do GitHub e o seletor/cards consomem o real; metas/timeline/monitoramento seguem por evoluir.
+**Projeto é a raiz do domínio** (spec 008): cada **Projeto = exatamente 1 repositório GitHub**. O sistema é **multi-projeto** — metas, atividades (commits) e quedas penduram em `project_id` (cada nessas suas specs). O **seletor do header troca o contexto** (cookie `selected_project_id`; fallback = projeto mais antigo) e filtra dashboard + timeline (**spec 012**). A **Timeline** é real para commits/CI; metas/monitoramento seguem por evoluir. A **home pública** mostra a atividade real da **vitrine** (projeto mais antigo de um admin, só eventos visíveis).
 
 Além do acompanhamento de metas, o produto inclui um subsistema de **monitoramento de serviços** (uptime/incidentes), **integração com GitHub** (commits, GitHub Actions e branches — por polling do worker **e** sincronização manual) e uma **timeline unificada** de atividade.
 
@@ -117,6 +117,9 @@ A Visão Geral também resume status dos serviços e atividade recente (subconju
   - Eventos automáticos (commits, incidentes) entram **visíveis por padrão**; o admin pode **ocultar** caso a caso.
 - **Retenção configurável** (default sugerido 90 dias): job periódico remove eventos além da janela.
 - Dentro da janela: paginação por scroll/cursor (últimos N + "ver mais").
+- **Estado atual (spec 012):** o feed é **real** para **commits** e **CI/CD** (workflow runs), por
+  **projeto** (filtrado pelo seletor do header). Metas (`goal.*`) e incidentes entram nas suas specs
+  (013/futura). É real **mas não ao vivo** — o "AO VIVO" (SSE) chega na **spec 014**.
 
 ---
 
@@ -157,7 +160,7 @@ Três estados por serviço: **Online · Degradado · Offline**.
 - Captura por **polling da API** (worker de fundo) **e** por **sincronização manual** ("Sincronizar Agora" em **Integrações**) — ambos sobre o mesmo núcleo idempotente, usando o token do **dono** do projeto.
 - Sincroniza e persiste: **commits** (dedupe por SHA), **GitHub Actions** (workflow runs) e **branches** (com a default), além de nome/branch padrão do repo.
 - Autenticação por **OAuth por usuário** (spec 009): cada usuário conecta a **própria** conta ("Conectar GitHub"); o token OAuth é guardado **cifrado em repouso** (AES-256-GCM) no Postgres e usado só no header Authorization. Nunca exposto ao cliente, em log nem em URL.
-- Alimenta o card "Commits Semanais", o bloco "último commit" e o log de atividade do projeto; gerará eventos `commit` na Timeline (spec futura).
+- Alimenta o card "Commits Semanais" e a **Atividade Recente/Timeline** (eventos `commit.created`/`ci.run` — **spec 012**). O bloco "último commit" do dashboard **saiu** (spec 012: redundante com a Atividade Recente).
 
 ---
 

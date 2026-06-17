@@ -18,4 +18,6 @@ export default function globalSetup() {
   execSync("bun run tests/e2e/seed-activity.ts", { stdio: "inherit", env });
   // Projeto do cliente (cliente-owner/cliente-repo) p/ a jornada de Integrações (spec 009).
   execSync("bun run tests/e2e/seed-connections.ts", { stdio: "inherit", env });
+  // Eventos da timeline (spec 012): 2º projeto do admin + backfill dos commits/runs semeados.
+  execSync("bun run tests/e2e/seed-events.ts", { stdio: "inherit", env });
 }

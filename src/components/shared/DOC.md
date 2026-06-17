@@ -24,6 +24,10 @@ Componentes avulsos, de apresentação (Server Components por padrão). A única
   `metas/metas-view.tsx`.
 - **`timeline-feed.tsx`** — exporta `TimelineFeed` (card "Atividade Recente"),
   `TimelineEventRow` e o helper `eventVisual(event)` (ícone/cor por tipo/fonte de evento).
+  Recebe eventos **reais** (`TimelineEvent`) por prop — consumido tanto pela home pública
+  (`listShowcaseEvents`) quanto pelo dashboard (`listEvents`). `TimelineEventRow` renderiza o
+  horário via `eventTime(new Date(event.createdAt))` (de `@/lib/events/format`), no lugar do
+  antigo `event.timestamp` (removido na spec 012).
 - **`uptime-panel.tsx`** — exporta `UptimePanel` (painel "Uptime do Projeto" da Home) e
   `UptimeDaysBar({ days, startLabel?, endLabel? })` (barra de 30 células de uptime diário),
   reutilizada na tela de Monitoramento. Lê `mockServices`/`mockIncidents`/`mockProjectUptimeDays`.

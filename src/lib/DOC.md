@@ -10,6 +10,8 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - `account/` — serviços de conta (perfil, senha, avatar, iniciais), testáveis fora do Next. Ver `account/DOC.md`.
 - `crypto/` — cifra simétrica em repouso (AES-256-GCM) do token OAuth do GitHub. Ver `crypto/DOC.md`.
 - `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
+- `events/` — eventos da Timeline (mapeadores puros commit/run, formatação de datas, backfill). Ver `events/DOC.md`.
+- `projects/` — seleção de projeto do header (função pura + resolvedor de cookie + Server Action). Ver `projects/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
 ## Arquivos
@@ -35,13 +37,31 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   tipo `Scope = { role:"admin" } | { role:"client"; userId }` + helper `scopeForUser(user)`
   (admin = global; client = só os seus). `createProject` carimba o `userId` do dono;
   `listProjects`/`getProject`/`deleteProject`/`weeklyCommitStats`/`latestCommit` recebem o
-  `Scope` e filtram por dono (admin sem filtro). Retornos discriminados `ok`. Valida o slug
-  (de `github/map`) antes de gravar; colisão `(userId,owner,repo)` (P2002) → `already_exists`
-  (o mesmo repo coexiste p/ donos diferentes). Única porta ao Postgres no domínio de projetos.
+  `Scope` e filtram por dono (admin sem filtro). `weeklyCommitStats`/`latestCommit` ganharam
+  um `projectId?` opcional (spec 012) p/ estreitar ao **projeto selecionado** no header;
+  `latestCommit` segue exportado (testes/back-compat), mas **não é mais renderizado** (o card
+  "último commit" saiu do dashboard). Retornos discriminados `ok`. Valida o slug (de
+  `github/map`) antes de gravar; colisão `(userId,owner,repo)` (P2002) → `already_exists` (o
+  mesmo repo coexiste p/ donos diferentes). Única porta ao Postgres no domínio de projetos.
+- **`events.ts`** — leitura da **Timeline** unificada (spec 012). `listEvents(scope, {projectId?,
+  cursor?, limit?})`: `where` por escopo (cliente → só `visibleToClient` E projeto próprio ou
+  global; admin → tudo), filtro por `projectId`, `orderBy id desc`, cursor `id < cursor`; busca
+  `limit+1` p/ derivar `nextCursor` → `{ events: TimelineEvent[]; nextCursor: string | null }`.
+  `listShowcaseEvents(limit=7)`: feed **público** da home (sem `Scope`) = eventos
+  `visibleToClient:true` do **projeto mais antigo de um admin** (vitrine); sem projeto → `[]`.
+  `weeklyEventStats(scope, projectId?)`: contagens 7d (`commits`/`ci`/`total`) p/ o painel
+  RESUMO DA SEMANA. DTO = `TimelineEvent` via `toDTO` (`id` `String()`, `createdAt` ISO).
+  Depende de `@/lib/db` e do `Scope` de `projects.ts`. (A escrita/emissão de eventos mora em
+  `events/` e em `github/sync.ts`.)
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
 - **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). Mock/UI.
-- **`mock-data.ts`** — dados mock do front-end (serão substituídos pela API real). `mockProject`
-  saiu (spec 008 — Switcher usa o nome real); `mockProjectUptimeDays`/metas/serviços seguem mock.
+  `TimelineEvent` foi remodelado (spec 012) p/ casar a linha real de `events`: `id` agora é
+  **`string`** (bigint serializado com `String()`) e `createdAt` **ISO** substitui o antigo
+  `timestamp`; os componentes formatam via `events/format.ts`.
+- **`mock-data.ts`** — dados mock do front-end (serão substituídos pela API real). `mockEvents`
+  foi **removido** (spec 012 — a Timeline e a Atividade Recente, no dashboard e na home, leem
+  `events` reais; sem consumidor de mock). `mockProject` já saíra (spec 008). Seguem mock:
+  `mockGoals`, `mockSummary`, `mockServices`, `mockIncidents`, `mockProjectUptimeDays` e demais.
 
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.

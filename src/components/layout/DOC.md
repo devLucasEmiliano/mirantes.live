@@ -20,21 +20,26 @@ Componentes avulsos; `sidebar` é cliente, os demais são de apresentação.
   `flex-1`), sempre visível mesmo quando a `<main>` rola.
 - **`public-header.tsx`** — cabeçalho da home `/`. Recebe o snapshot
   (`projectName`, `tagline`, `live`, `updatedAt`) e renderiza marca, selo AO VIVO
-  (quando `live`) e o horário do snapshot. Passa `projectName` (do snapshot) ao `ProjectSwitcher`
-  — a home é pública/sem sessão, então **não** consulta o banco.
-- **`app-header.tsx`** (Server Component, `async`, spec 008/009) — cabeçalho interno (título +
-  breadcrumb) das telas autenticadas. Resolve o usuário (`getCurrentUser`) e busca o **nome do
-  projeto raiz do escopo** (`db.project.findFirst`, `orderBy createdAt asc`, `select name`):
-  cliente → `where { userId }` (só os seus); admin → `where {}` (o mais antigo global). Passa o
-  nome ao `ProjectSwitcher`.
+  (quando `live`) e o horário do snapshot. A home é **anônima** (projeto único da vitrine), então
+  mostra um **chip estático** com o `projectName` (do snapshot) — **não** usa mais o
+  `ProjectSwitcher` nem consulta o banco.
+- **`app-header.tsx`** (Server Component, `async`, spec 008/009/012) — cabeçalho interno (título +
+  breadcrumb) das telas autenticadas. Resolve o usuário (`getCurrentUser`), lista os projetos do
+  escopo (`listProjects(scope)`) e **resolve o selecionado** lendo o cookie
+  (`SELECTED_PROJECT_COOKIE`) via `pickSelectedProject` (fallback = mais antigo). Passa
+  `projects` (`{id,name}`) + `selectedId` ao `ProjectSwitcher`. Cliente vê só os seus; admin todos.
 - **`live-tag.tsx`** — selo "AO VIVO".
-- **`project-switcher.tsx`** — exibe o **nome real** do projeto (prop `projectName`); sem projetos
-  → "Nenhum projeto". Sem dropdown de troca de contexto ainda (spec futura).
+- **`project-switcher.tsx`** (`"use client"`, spec 012) — **dropdown** de troca de contexto.
+  Recebe `projects` + `selectedId`; ao escolher, chama a Server Action `selectProject`
+  (`@/lib/projects/actions`, grava o cookie) dentro de um `useTransition` e em seguida
+  `router.refresh()` p/ o servidor re-renderizar dashboard/timeline filtrados. Fecha ao clicar
+  fora; sem projetos → "Nenhum projeto" (botão inerte). `data-testid`: `project-switcher` (gatilho)
+  e `project-option` (itens).
 
 ## O que NÃO vai aqui
 - **`sidebar.tsx` não importa o DAL `server-only`** — recebe o usuário já resolvido por
   prop (importar `session.ts` quebraria o bundle do cliente).
 - **`project-switcher.tsx`/`sidebar.tsx` não acessam o banco** — recebem dados por prop (o
-  `AppHeader`, que é Server Component, é quem consulta). O `app-header.tsx` é a exceção
-  consciente: faz 1 query leve (só `name`) p/ alimentar o switcher.
+  `AppHeader`, que é Server Component, é quem consulta `listProjects` + lê o cookie). O switcher
+  só dispara a Server Action `selectProject` (a escrita do cookie roda no servidor).
 - **Sem segredos** — nada de PAT/credenciais nestes componentes.

@@ -148,21 +148,27 @@ export async function deleteProject(
  * Conta commits do escopo na janela atual (≤7d) e na anterior (7–14d), p/ o card
  * "Commits da Semana" e sua variação %.
  */
-export async function weeklyCommitStats(scope: Scope): Promise<{
+export async function weeklyCommitStats(
+  scope: Scope,
+  projectId?: string,
+): Promise<{
   count: number;
   previousCount: number;
 }> {
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * DAY_MS);
   const fourteenDaysAgo = new Date(now - 14 * DAY_MS);
-  const owner = commitOwnerWhere(scope);
+  // `projectId` (seletor do header) estreita o escopo a 1 projeto; sem ele = todo o escopo.
+  const base = projectId
+    ? { ...commitOwnerWhere(scope), projectId }
+    : commitOwnerWhere(scope);
   const [count, previousCount] = await Promise.all([
     db.commit.count({
-      where: { ...owner, committedAt: { gte: sevenDaysAgo } },
+      where: { ...base, committedAt: { gte: sevenDaysAgo } },
     }),
     db.commit.count({
       where: {
-        ...owner,
+        ...base,
         committedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo },
       },
     }),
@@ -170,10 +176,15 @@ export async function weeklyCommitStats(scope: Scope): Promise<{
   return { count, previousCount };
 }
 
-/** O commit mais recente do escopo, com o nome do projeto. Null se vazio. */
-export async function latestCommit(scope: Scope): Promise<LatestCommit | null> {
+/** O commit mais recente do escopo (opcionalmente de 1 projeto), com o nome do projeto. */
+export async function latestCommit(
+  scope: Scope,
+  projectId?: string,
+): Promise<LatestCommit | null> {
   const commit = await db.commit.findFirst({
-    where: commitOwnerWhere(scope),
+    where: projectId
+      ? { ...commitOwnerWhere(scope), projectId }
+      : commitOwnerWhere(scope),
     orderBy: { committedAt: "desc" },
     include: { project: { select: { name: true } } },
   });

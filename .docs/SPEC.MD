@@ -85,15 +85,17 @@ estático. O conteúdo do snapshot é não sensível.
 |--------|------|-------|
 | id | bigint identity PK | monotônico — serve de `Last-Event-ID` |
 | source | text not null | `goal` \| `commit` \| `incident` |
-| type | text not null | ex. `goal.completed`, `commit.batch`, `incident.opened` |
-| ref_id | uuid/text null | id da entidade relacionada |
+| type | text not null | `commit.created`, `ci.run` (spec 012); `goal.*` (013); `incident.*` (futura) |
+| ref_id | uuid/text null | sha do commit / `String(run_id)` / id da entidade |
+| project_id | uuid null | **spec 012**: projeto do evento (filtro do seletor + vitrine da home); `null` = global |
 | title | text not null | descrição curta exibida |
 | detail | text null | texto secundário |
 | visible_to_client | boolean not null | default **true** |
-| created_at | timestamptz not null | default now() |
+| created_at | timestamptz not null | default now() — carrega o **tempo da atividade** (commit/run) |
 
-- Índices: `(created_at desc)`, `(visible_to_client, created_at desc)`.
-- `id` crescente é a âncora de replay do SSE.
+- Índices: `(created_at desc)`, `(visible_to_client, created_at desc)`, `(project_id, created_at desc)`.
+- `id` crescente é a âncora de replay do SSE. **A leitura ordena por `id desc`** (inserção); `created_at`
+  agrupa por dia. Emissão no `syncProject` + `backfillEvents` (spec 012); `PUBLISH`/SSE pendentes (014).
 
 ### 2.5 `services` (monitoramento)
 | coluna | tipo | notas |
@@ -177,7 +179,8 @@ estático. O conteúdo do snapshot é não sensível.
 | updated_at | timestamptz | atualizado a cada reconexão |
 
 > Tabela **lateral** 1:1 (espelha `avatars`) p/ não arrastar o segredo em todo `getCurrentUser`. O token OAuth vive **cifrado em repouso**; a chave fica em `env.GITHUB_TOKEN_ENC_KEY` (32 bytes base64), **fora** do banco. Decifrado só em memória, no sync (`resolveUserToken`). **Sai o `GITHUB_PAT` global** (spec 009).
-> `goals`/`events`/`services` ganham `project_id` nas suas specs (Projeto é a raiz); aqui ainda são globais.
+> `goals`/`services` ganham `project_id` nas suas specs (Projeto é a raiz). **`events` já tem `project_id`
+> (nullable) desde a spec 012** (filtro do seletor + vitrine da home); `null` = evento global.
 
 ---
 
@@ -204,7 +207,7 @@ estático. O conteúdo do snapshot é não sensível.
 | PATCH | `/api/goals/:id` | admin | edita (status/%/data/título/posição) |
 | DELETE | `/api/goals/:id` | admin | arquiva (soft delete, cascata) |
 | GET | `/api/summary` | autenticado | dados dos 4 cards |
-| GET | `/api/events` | autenticado | timeline paginada (cliente vê só `visible_to_client`) |
+| GET | `/api/events` | autenticado | timeline paginada (cliente só `visible_to_client`); **spec 012: filtro `projectId` + cursor** |
 | PATCH | `/api/events/:id` | admin | alterna visibilidade do evento |
 | GET | `/api/monitoring` | autenticado | serviços, estados, uptime, latência |
 | GET | `/api/incidents` | autenticado | lista de incidentes |
@@ -306,8 +309,9 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 - **Actions:** `listWorkflowRuns` (envelope `{ workflow_runs }`) → upsert por `(project, run_id)`.
 - **Cursor:** `last_seen_sha = HEAD da default`; `last_polled_at = now()`.
 - Erros: `project_not_found` / `not_connected` (dono sem conexão GitHub, sem rede) / `github_error` (borda HTTP/rede).
-- Lote de novos commits → evento `commit.batch` + `PUBLISH goals:updates` → Timeline + SSE: **pendente**
-  da spec de Timeline (fica só um `// TODO(spec-timeline)`).
+- Eventos da Timeline (**spec 012**): **1 `commit.created` por commit novo** + **1 `ci.run` por run ao
+  concluir** (transição p/ `completed`), idempotentes (dedupe por SHA no banco / por estado do run);
+  `backfillEvents` preenche o histórico. O `PUBLISH goals:updates` + SSE seguem **pendentes da spec 014**.
 - Token **OAuth do dono** do projeto, resolvido por `resolveUserToken(project.user_id)` (decifra a `github_connections` em memória); **nunca** em log, resposta de API ou URL (só no header Authorization). Sem conexão/token inválido → `not_connected`.
 - Cliente HTTP: `fetch` nativo, **sem Octokit** (CLAUDE.md §0); injetável p/ teste com stub.
 - **Conexão OAuth (spec 009):** `GET /api/github/oauth/start` gera um `state` assinado (HMAC + cookie httpOnly) e 307 ao GitHub; o `callback` valida o `state` (assinatura + igualdade byte-a-byte com o cookie + dono = usuário atual), troca o `code` pelo token (`src/lib/github/oauth.ts`; faked no e2e via `GITHUB_OAUTH_FAKE`) e grava a conexão cifrada (`src/lib/github/connection.ts`). Escopo OAuth: `repo read:user`.

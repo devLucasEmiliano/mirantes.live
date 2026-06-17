@@ -9,7 +9,8 @@ import {
   Search,
   TriangleAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { eventDateGroup, eventTime } from "@/lib/events/format";
 import type { TimelineEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -48,32 +49,61 @@ function feedVisual(event: TimelineEvent): {
   return { Icon: Pencil, color: "#8F5A3C" };
 }
 
-/** "Hoje, 14:32" → grupo "Hoje — 11 Jun 2026"; "28 Mai, 10:30" → "28 Mai 2026". */
-function dateGroupOf(event: TimelineEvent): string {
-  const prefix = event.timestamp.split(",")[0];
-  if (prefix === "Hoje") return "Hoje — 11 Jun 2026";
-  if (prefix === "Ontem") return "Ontem — 10 Jun 2026";
-  return `${prefix} 2026`;
-}
-
-function timeOf(event: TimelineEvent): string {
-  return event.timestamp.split(", ")[1] ?? event.timestamp;
-}
-
 interface TimelineViewProps {
   events: TimelineEvent[];
+  /** Cursor da próxima página (`events.id`) ou null se acabou. */
+  nextCursor: string | null;
+  /** Projeto selecionado (filtra o "carregar mais"); undefined = todo o escopo. */
+  projectId?: string;
+  /** "Agora" do servidor (ISO) p/ agrupar Hoje/Ontem de forma determinística. */
+  nowIso: string;
+  /** Contagens reais da semana (7d) p/ o painel RESUMO. */
+  weekSummary: { commits: number; ci: number; total: number };
 }
 
 /**
- * Conteúdo da página Timeline: feed agrupado por dia + painel lateral
- * de busca, filtros por tipo, resumo da semana e metas mais ativas.
+ * Conteúdo da página Timeline: feed real (events) agrupado por dia + painel lateral de busca,
+ * filtros por tipo e resumo da semana. "Carregar mais" pagina via GET /api/events (cursor).
+ * Sem SSE ainda (spec 014) — lê do banco a cada carga/navegação.
  */
-export function TimelineView({ events }: TimelineViewProps) {
+export function TimelineView({
+  events,
+  nextCursor,
+  projectId,
+  nowIso,
+  weekSummary,
+}: TimelineViewProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [extra, setExtra] = useState<TimelineEvent[]>([]);
+  const [cursor, setCursor] = useState<string | null>(nextCursor);
+  const [loading, setLoading] = useState(false);
+
+  const now = useMemo(() => new Date(nowIso), [nowIso]);
+  const all = useMemo(() => [...events, ...extra], [events, extra]);
+
+  const loadMore = useCallback(async () => {
+    if (!cursor || loading) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ cursor, limit: "30" });
+      if (projectId) params.set("projectId", projectId);
+      const res = await fetch(`/api/events?${params.toString()}`);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          events: TimelineEvent[];
+          nextCursor: string | null;
+        };
+        setExtra((prev) => [...prev, ...data.events]);
+        setCursor(data.nextCursor);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [cursor, loading, projectId]);
 
   const filtered = useMemo(() => {
-    return events.filter((event) => {
+    return all.filter((event) => {
       if (filter !== "all" && !event.type.endsWith(`.${filter}`)) return false;
       if (!query.trim()) return true;
       const term = query.trim().toLowerCase();
@@ -82,16 +112,16 @@ export function TimelineView({ events }: TimelineViewProps) {
         event.detail?.toLowerCase().includes(term)
       );
     });
-  }, [events, filter, query]);
+  }, [all, filter, query]);
 
   const groups = useMemo(() => {
     const map = new Map<string, TimelineEvent[]>();
     for (const event of filtered) {
-      const group = dateGroupOf(event);
+      const group = eventDateGroup(new Date(event.createdAt), now);
       map.set(group, [...(map.get(group) ?? []), event]);
     }
     return [...map.entries()];
-  }, [filtered]);
+  }, [filtered, now]);
 
   return (
     <div className="flex flex-1 gap-6 px-8 py-6">
@@ -136,7 +166,7 @@ export function TimelineView({ events }: TimelineViewProps) {
                       )}
                     </div>
                     <span className="shrink-0 font-body text-xs text-foreground-muted">
-                      {timeOf(event)}
+                      {eventTime(new Date(event.createdAt))}
                     </span>
                   </div>
                 </div>
@@ -149,6 +179,19 @@ export function TimelineView({ events }: TimelineViewProps) {
           <span className="px-5 py-8 text-center font-body text-sm text-foreground-muted">
             Nenhum evento encontrado.
           </span>
+        )}
+
+        {cursor && (
+          <div className="flex justify-center border-t border-border-subtle px-5 py-4">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loading}
+              className="rounded-full bg-surface-elevated px-4 py-1.5 text-xs text-foreground-primary transition-colors hover:bg-border-subtle disabled:opacity-50"
+            >
+              {loading ? "Carregando…" : "Carregar mais"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -205,47 +248,21 @@ export function TimelineView({ events }: TimelineViewProps) {
           </span>
           <div className="flex flex-col gap-2.5">
             <SummaryStat
-              label="Metas concluídas"
-              value="3"
-              valueClass="text-status-done"
-            />
-            <SummaryStat
-              label="Atualizações"
-              value="8"
+              label="Commits"
+              value={String(weekSummary.commits)}
               valueClass="text-accent-primary"
             />
             <SummaryStat
-              label="Metas criadas"
-              value="4"
+              label="Execuções de CI"
+              value={String(weekSummary.ci)}
               valueClass="text-accent-tertiary"
             />
             <SummaryStat
               label="Total de eventos"
-              value="15"
+              value={String(weekSummary.total)}
               valueClass="text-foreground-primary"
             />
           </div>
-        </div>
-
-        <div className="flex flex-col gap-3 rounded-sm bg-surface-card p-4">
-          <span className="font-body text-xs font-bold tracking-[1px] text-foreground-primary">
-            METAS MAIS ATIVAS
-          </span>
-          <ActiveGoal
-            dotClass="bg-accent-secondary"
-            name="Dashboard Principal"
-            events="5 eventos"
-          />
-          <ActiveGoal
-            dotClass="bg-status-done"
-            name="API de Autenticação"
-            events="4 eventos"
-          />
-          <ActiveGoal
-            dotClass="bg-accent-primary"
-            name="Endpoints de Metas"
-            events="3 eventos"
-          />
         </div>
       </div>
     </div>
@@ -266,28 +283,6 @@ function SummaryStat({
       <span className="text-[13px] text-foreground-muted">{label}</span>
       <span className={`font-mono text-sm font-bold ${valueClass}`}>
         {value}
-      </span>
-    </span>
-  );
-}
-
-function ActiveGoal({
-  dotClass,
-  name,
-  events,
-}: {
-  dotClass: string;
-  name: string;
-  events: string;
-}) {
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className={`size-2 shrink-0 rounded-full ${dotClass}`} />
-      <span className="flex-1 truncate text-[13px] text-foreground-primary">
-        {name}
-      </span>
-      <span className="shrink-0 font-body text-[11px] text-foreground-muted">
-        {events}
       </span>
     </span>
   );

@@ -58,7 +58,13 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   / `github_error`; sucesso → `{ inserted:{commits,branches,runs}, lastSeenSha }`.
   Commits via `createMany(skipDuplicates)` na unique `(project,sha)`; branches upsert
   `(project,name)` + remoção das ausentes; runs upsert `(project,run_id)`; avança
-  `lastSeenSha`/`lastPolledAt`. Deixa `// TODO(spec-timeline)` p/ o evento `commit.batch`.
+  `lastSeenSha`/`lastPolledAt`. **Emite eventos da Timeline** (spec 012, substitui o antigo
+  `// TODO(spec-timeline)`): consulta os SHAs já no banco **antes** do `createMany` e gera
+  `commit.created` (via `commitToEvent`) só p/ os realmente novos; p/ runs faz
+  `findUnique`→`shouldEmitRunEvent`→`upsert`, acumulando `ci.run` (via `runToEvent`) apenas na
+  **transição p/ `completed`**; ao fim, `db.event.createMany` de todos. Importa de
+  `@/lib/events/emit`. **Sem transação/PUBLISH** — o wrapper transacional + `PUBLISH
+  goals:updates` entra na spec 014.
 - **`worker.ts`** — `runGitHubSyncLoop({ intervalMs })`: percorre `db.project.findMany` chamando
   `syncProject`, loga só contagens (NUNCA o token), sobrevive a erro por-projeto, encerra em
   SIGINT/SIGTERM. Rodado por `bun run src/lib/github/worker.ts` (script `worker:github`). Sem teste
@@ -70,6 +76,7 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   token decifrado por `resolveUserToken` é p/ uso imediato em memória, não p/ devolver.
 - **Sem chamar o github.com fora dos pontos certos** — o fluxo OAuth fala só por
   `oauth.ts`; as chamadas de dados, só por `client.ts`.
-- **Sem regra de metas/eventos/SSE** — Timeline (evento `commit.batch` + PUBLISH) é spec futura;
-  aqui fica só o `// TODO(spec-timeline)`.
+- **Sem PUBLISH/SSE e sem `goal.*`** — o sync **emite** `commit.created`/`ci.run` no Postgres
+  (spec 012), mas o `PUBLISH goals:updates` + o stream ficam p/ a spec 014, e os eventos de
+  metas (`goal.*`) p/ a 013. Os mapeadores puros e o backfill vivem em `src/lib/events/`.
 - **Sem Octokit ou libs novas** — `fetch` nativo (§0).

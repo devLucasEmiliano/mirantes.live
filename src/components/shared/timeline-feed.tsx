@@ -6,6 +6,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import Link from "next/link";
+import { eventTime } from "@/lib/events/format";
 import type { TimelineEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +59,7 @@ export function TimelineEventRow({
         )}
       </div>
       <span className="shrink-0 font-body text-[11px] text-foreground-muted">
-        {event.timestamp}
+        {eventTime(new Date(event.createdAt))}
       </span>
     </div>
   );

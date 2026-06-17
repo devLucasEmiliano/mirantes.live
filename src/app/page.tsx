@@ -5,13 +5,15 @@ import { ProgressRing } from "@/components/shared/progress-ring";
 import { StatCard } from "@/components/shared/stat-card";
 import { TimelineFeed } from "@/components/shared/timeline-feed";
 import { UptimePanel } from "@/components/shared/uptime-panel";
+import { listShowcaseEvents } from "@/lib/events";
 import { readHomeSnapshot } from "@/lib/home-snapshot";
-import { mockEvents, mockGoals, mockSummary } from "@/lib/mock-data";
+import { mockGoals, mockSummary } from "@/lib/mock-data";
 
 // A home é servida a partir do snapshot público no Redis (SPEC §1/§4); o Postgres
 // segue sendo a fonte de verdade do negócio. force-dynamic: lê o Redis a cada
-// request (apagar a chave → fallback; re-seed → restaura). Os cards/listas abaixo
-// ainda são mock — serão substituídos pelas suas próprias specs.
+// request (apagar a chave → fallback; re-seed → restaura). A "Atividade Recente" é
+// REAL (vitrine = projeto mais antigo de um admin, só visível — spec 012); cards/metas/
+// uptime seguem mock até as suas specs.
 export const dynamic = "force-dynamic";
 
 /**
@@ -22,6 +24,8 @@ export default async function HomePage() {
   const snapshot = await readHomeSnapshot();
   const { totalGoals, completedGoals, inProgressGoals } = mockSummary;
   const todoGoals = totalGoals - completedGoals - inProgressGoals;
+  // Feed real da vitrine (só `visibleToClient`); degrada p/ vazio se o Postgres falhar.
+  const events = await listShowcaseEvents(7).catch(() => []);
 
   return (
     <div className="relative isolate flex min-h-dvh flex-1 flex-col overflow-hidden bg-surface-primary">
@@ -112,9 +116,7 @@ export default async function HomePage() {
       <div className="flex flex-1 gap-6 px-10 pb-8">
         <GoalsList goals={mockGoals.slice(0, 3)} />
         <div className="w-[400px] shrink-0">
-          <TimelineFeed
-            events={mockEvents.filter((e) => e.source === "goal").slice(0, 7)}
-          />
+          <TimelineFeed events={events} />
         </div>
         <div className="w-[340px] shrink-0">
           <UptimePanel />
