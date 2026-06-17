@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { createGitHubClient, type GitHubClient, GitHubError } from "./client";
+import { resolveUserToken } from "./connection";
 import { mapCommit } from "./map";
 
 // Núcleo de sincronização (idempotente): puxa nome/branch padrão, commits, branches e
@@ -17,7 +18,10 @@ export interface SyncInserted {
 
 export type SyncResult =
   | { ok: true; inserted: SyncInserted; lastSeenSha: string | null }
-  | { ok: false; error: "project_not_found" | "no_token" | "github_error" };
+  | {
+      ok: false;
+      error: "project_not_found" | "not_connected" | "github_error";
+    };
 
 export async function syncProject(
   projectId: string,
@@ -26,10 +30,16 @@ export async function syncProject(
   const project = await db.project.findUnique({ where: { id: projectId } });
   if (!project) return { ok: false, error: "project_not_found" };
 
-  // `client === undefined` (não injetado) → resolve do env; sem PAT → no_token (sem rede).
-  // Em teste sempre injetamos o stub, então este ramo só dispara em produção sem PAT.
-  const gh = client === undefined ? createGitHubClient() : client;
-  if (gh === null) return { ok: false, error: "no_token" };
+  // `client` não injetado → resolve o token do DONO (cifrado no banco); sem conexão ou
+  // token inválido → not_connected (sem rede). Em teste sempre injetamos o stub.
+  let gh: GitHubClient;
+  if (client === undefined) {
+    const resolved = await resolveUserToken(project.userId);
+    if (!resolved.ok) return { ok: false, error: "not_connected" };
+    gh = createGitHubClient(resolved.token);
+  } else {
+    gh = client;
+  }
 
   const ref = { owner: project.owner, repo: project.repo };
   try {

@@ -24,6 +24,8 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]
   avatar       Avatar? // foto de perfil (bytea) em tabela lateral
+  connection   GithubConnection? // conexão OAuth (token cifrado) — tabela lateral 1:1
+  projects     Project[] // projetos de que este usuário é dono (spec 009)
 
   @@map("users")
 }
@@ -38,6 +40,23 @@ model Avatar {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("avatars")
+}
+
+/// Conexão OAuth do usuário com o GitHub. Token cifrado em repouso (AES-256-GCM).
+/// Tabela lateral 1:1 (espelha Avatar) p/ NÃO arrastar o segredo em todo getCurrentUser().
+model GithubConnection {
+  userId          String   @id @map("user_id") @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenCiphertext String   @map("token_ciphertext")
+  tokenIv         String   @map("token_iv")
+  tokenAuthTag    String   @map("token_auth_tag")
+  githubLogin     String   @map("github_login")
+  githubUserId    BigInt   @map("github_user_id")
+  scopes          String
+  connectedAt     DateTime @default(now()) @map("connected_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("github_connections")
 }
 
 /// Sessão por banco. O `id` é o token que vai (assinado) no cookie httpOnly.
@@ -63,11 +82,14 @@ model Project {
   lastPolledAt  DateTime?     @map("last_polled_at")
   lastSeenSha   String?       @map("last_seen_sha")
   createdAt     DateTime      @default(now()) @map("created_at")
+  userId        String        @map("user_id") @db.Uuid
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   commits       Commit[]
   branches      Branch[]
   workflowRuns  WorkflowRun[]
 
-  @@unique([owner, repo])
+  @@unique([userId, owner, repo])
+  @@index([userId])
   @@map("projects")
 }
 

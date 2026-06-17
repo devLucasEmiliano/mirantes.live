@@ -9,6 +9,17 @@ const webEnv = {
   DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
   REDIS_URL: process.env.TEST_REDIS_URL ?? "",
   SESSION_SECRET: process.env.SESSION_SECRET ?? "",
+  // OAuth App do GitHub (spec 009): valores de teste + modo FAKED (sem rede). APP_BASE_URL
+  // aponta p/ a porta do e2e (3100) p/ o redirect_uri e os 303 do callback baterem aqui.
+  GITHUB_OAUTH_CLIENT_ID:
+    process.env.GITHUB_OAUTH_CLIENT_ID ?? "test-client-id",
+  GITHUB_OAUTH_CLIENT_SECRET:
+    process.env.GITHUB_OAUTH_CLIENT_SECRET ?? "test-client-secret",
+  GITHUB_TOKEN_ENC_KEY:
+    process.env.GITHUB_TOKEN_ENC_KEY ??
+    "CC0ZHvIj+wPc9tkJ3t/H8JbtGdAAYCjFJ6wS+bjDujs=",
+  APP_BASE_URL: `http://localhost:${PORT}`,
+  GITHUB_OAUTH_FAKE: "1",
   PORT: String(PORT),
 };
 

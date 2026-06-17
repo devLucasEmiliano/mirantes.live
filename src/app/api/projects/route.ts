@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
-import { createProject, listProjects } from "@/lib/projects";
+import { createProject, listProjects, scopeForUser } from "@/lib/projects";
 
-// GET /api/projects — autenticado: lista projetos.
-// POST /api/projects — admin: cria projeto (1 repo). Handler fino:
-// sessão (401) → não-admin (403) → zod (400) → serviço → invalid_slug (400) /
+// GET /api/projects — autenticado: lista os projetos do ESCOPO (cliente só os seus,
+// admin todos). POST /api/projects — autenticado: cria projeto (1 repo) carimbando o
+// dono (current.id). Handler fino: sessão (401) → zod (400) → invalid_slug (400) /
 // already_exists (409) / criado (201).
 
 export async function GET() {
@@ -13,7 +13,7 @@ export async function GET() {
   if (!current) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const { projects } = await listProjects();
+  const { projects } = await listProjects(scopeForUser(current));
   return NextResponse.json({ projects }, { status: 200 });
 }
 
@@ -28,9 +28,6 @@ export async function POST(request: Request) {
   if (!current) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (current.role !== "admin") {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
 
   const parsed = CreateBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -41,7 +38,7 @@ export async function POST(request: Request) {
   // Nome é opcional; sem ele, usa o `repo` (o slug owner/repo aparece à parte na UI).
   const name = parsed.data.name?.length ? parsed.data.name : repo;
 
-  const result = await createProject({ name, owner, repo });
+  const result = await createProject({ userId: current.id, name, owner, repo });
   if (!result.ok) {
     const status = result.error === "already_exists" ? 409 : 400;
     return NextResponse.json({ error: result.error }, { status });

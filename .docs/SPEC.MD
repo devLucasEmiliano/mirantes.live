@@ -147,7 +147,8 @@ estático. O conteúdo do snapshot é não sensível.
 | last_polled_at | timestamptz null | cursor de tempo do sync (`since`) |
 | last_seen_sha | text null | HEAD da branch padrão no último sync |
 | created_at | timestamptz | default now() |
-- `@@unique(owner, repo)` — chave natural do repo.
+| user_id | uuid FK→users (cascade) | **dono** do projeto (spec 009) |
+- `@@unique(user_id, owner, repo)` — o mesmo repo pode coexistir p/ donos diferentes; `@@index(user_id)`.
 
 **`commits`** — agora pendurado em `project_id` (não mais `repo_id`):
 | id uuid PK | project_id uuid FK→projects (on delete cascade) | sha text | message text (subject) | author text | committed_at timestamptz | created_at timestamptz |
@@ -162,7 +163,20 @@ estático. O conteúdo do snapshot é não sensível.
 - `@@unique(project_id, run_id)` (upsert). Índice `(project_id, run_started_at)`.
 - `run_id` é **bigint** (estoura int32) e **não é JSON-safe** → DTO serializa com `String()`.
 
-> PAT **não** vive no banco — env/secret do servidor (`env.GITHUB_PAT`).
+#### `github_connections` (conexão OAuth por usuário — spec 009)
+| coluna | tipo | notas |
+|--------|------|-------|
+| user_id | uuid PK / FK→users | 1:1; `on delete cascade` |
+| token_ciphertext | text not null | token OAuth **cifrado** (AES-256-GCM, base64) |
+| token_iv | text not null | nonce GCM (base64) |
+| token_auth_tag | text not null | tag de integridade GCM (base64) |
+| github_login | text not null | login do GitHub (exibido como @login) |
+| github_user_id | bigint not null | id numérico da conta GitHub |
+| scopes | text not null | escopos concedidos (`repo read:user`) |
+| connected_at | timestamptz | default now() |
+| updated_at | timestamptz | atualizado a cada reconexão |
+
+> Tabela **lateral** 1:1 (espelha `avatars`) p/ não arrastar o segredo em todo `getCurrentUser`. O token OAuth vive **cifrado em repouso**; a chave fica em `env.GITHUB_TOKEN_ENC_KEY` (32 bytes base64), **fora** do banco. Decifrado só em memória, no sync (`resolveUserToken`). **Sai o `GITHUB_PAT` global** (spec 009).
 > `goals`/`events`/`services` ganham `project_id` nas suas specs (Projeto é a raiz); aqui ainda são globais.
 
 ---
@@ -197,17 +211,20 @@ estático. O conteúdo do snapshot é não sensível.
 | POST | `/api/incidents` | admin | registra incidente manual |
 | PATCH | `/api/incidents/:id` | admin | resolve incidente manual |
 | GET/POST/PATCH/DELETE | `/api/services` | admin | CRUD de serviços monitorados |
-| GET | `/api/projects` | autenticado | lista projetos |
-| POST | `/api/projects` | admin | cria projeto (1 repo); `invalid_slug`→400, `already_exists`→409, criado→201 |
-| GET | `/api/projects/:id` | autenticado | projeto + log (commits/branches/runs); `runId` serializado com `String()` |
-| DELETE | `/api/projects/:id` | admin | remove projeto (CASCADE) |
-| POST | `/api/projects/:id/sync` | admin | sincroniza (commits/Actions/branches); `no_token`→409, `not_found`→404, `github_error`→502 |
+| GET | `/api/projects` | autenticado (escopo) | lista projetos **do escopo** (cliente só os seus; admin todos) |
+| POST | `/api/projects` | autenticado | cria projeto (1 repo) **carimbando o dono**; `invalid_slug`→400, `already_exists`→409, criado→201 |
+| GET | `/api/projects/:id` | autenticado (escopo) | projeto + log; alheio→404; `runId` serializado com `String()` |
+| DELETE | `/api/projects/:id` | autenticado (escopo) | remove projeto do dono (CASCADE); alheio→404 |
+| POST | `/api/projects/:id/sync` | autenticado (escopo) | sincroniza com o **token do dono**; alheio→404, `not_connected`→409, `github_error`→502 |
+| GET | `/api/github/oauth/start` | autenticado | inicia OAuth: grava `state` (cookie httpOnly) + 307 ao authorize do GitHub |
+| GET | `/api/github/oauth/callback` | autenticado | valida `state`+code, troca pelo token, grava conexão cifrada; 303 p/ Integrações |
+| DELETE | `/api/github/connection` | autenticado | desconecta a conta do GitHub do usuário (idempotente) |
 | GET/PATCH | `/api/settings` | admin | retenção, intervalos, PAT |
 | GET | `/api/stream` | autenticado | canal SSE |
 
 **Regra transversal de mutação:** grava no Postgres (transação) → insere em `events` → `PUBLISH goals:updates {event}` no Redis → SSE entrega.
 
-**Filtro de visibilidade:** endpoints de leitura para `role=client` aplicam `visible_to_client = true` e nunca expõem dados de `/api/settings`, `/api/services`. As **mutações** de `/api/projects` (POST/DELETE/sync) são admin-only (403 ao cliente); o `GET` de projetos é autenticado.
+**Filtro de visibilidade:** endpoints de leitura para `role=client` aplicam `visible_to_client = true` e nunca expõem dados de `/api/settings`, `/api/services`. **Projetos são escopados por dono** (spec 009): cliente cria/vê/sincroniza/remove **apenas os seus** (projeto alheio → 404); admin é global. A conexão do GitHub (`/api/github/*`) é por usuário.
 
 **Home pública (`/`):** Server Component que lê o snapshot do Redis (`readHomeSnapshot()`,
 chave `home:snapshot`) — **não** é Route Handler. `force-dynamic` (lê o Redis a cada
@@ -287,11 +304,12 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 - **Branches:** `listBranches` → upsert por `(project, name)` (marca a default) + **remove** as ausentes.
 - **Actions:** `listWorkflowRuns` (envelope `{ workflow_runs }`) → upsert por `(project, run_id)`.
 - **Cursor:** `last_seen_sha = HEAD da default`; `last_polled_at = now()`.
-- Erros: `project_not_found` / `no_token` (sem PAT, sem rede) / `github_error` (borda HTTP/rede).
+- Erros: `project_not_found` / `not_connected` (dono sem conexão GitHub, sem rede) / `github_error` (borda HTTP/rede).
 - Lote de novos commits → evento `commit.batch` + `PUBLISH goals:updates` → Timeline + SSE: **pendente**
   da spec de Timeline (fica só um `// TODO(spec-timeline)`).
-- PAT lido de `env.GITHUB_PAT`; **nunca** em log, resposta de API ou URL (só no header Authorization).
+- Token **OAuth do dono** do projeto, resolvido por `resolveUserToken(project.user_id)` (decifra a `github_connections` em memória); **nunca** em log, resposta de API ou URL (só no header Authorization). Sem conexão/token inválido → `not_connected`.
 - Cliente HTTP: `fetch` nativo, **sem Octokit** (CLAUDE.md §0); injetável p/ teste com stub.
+- **Conexão OAuth (spec 009):** `GET /api/github/oauth/start` gera um `state` assinado (HMAC + cookie httpOnly) e 307 ao GitHub; o `callback` valida o `state` (assinatura + igualdade byte-a-byte com o cookie + dono = usuário atual), troca o `code` pelo token (`src/lib/github/oauth.ts`; faked no e2e via `GITHUB_OAUTH_FAKE`) e grava a conexão cifrada (`src/lib/github/connection.ts`). Escopo OAuth: `repo read:user`.
 
 ---
 
@@ -340,7 +358,7 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 
 - Cookies `httpOnly` + `Secure` + `SameSite=Lax`.
 - Autorização por papel em todas as mutações e em leituras sensíveis.
-- PAT e segredos só no servidor; nunca em URL, log ou resposta ao cliente.
+- Segredos só no servidor; nunca em URL, log ou resposta ao cliente. O **token OAuth do GitHub** é guardado **cifrado em repouso** (AES-256-GCM, `src/lib/crypto/secret.ts`); a chave (`env.GITHUB_TOKEN_ENC_KEY`, 32 bytes base64) fica **fora** do banco. O fluxo OAuth usa **`state` anti-CSRF** (HMAC + cookie httpOnly, comparado byte-a-byte no callback) e `redirect_uri` fixo derivado de `APP_BASE_URL`.
 - Rate limit no login.
 - Validação de input (zod) em todos os Route Handlers.
 

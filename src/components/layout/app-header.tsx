@@ -1,4 +1,5 @@
 import { Bell } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { LiveTag } from "./live-tag";
 import { ProjectSwitcher } from "./project-switcher";
@@ -8,10 +9,12 @@ interface AppHeaderProps {
   breadcrumb: string;
 }
 
-// Server Component (async): busca o nome do projeto raiz (o mais antigo) e passa ao
-// switcher. Query leve (select name) — todas as telas autenticadas o renderizam.
+// Server Component (async): busca o nome do projeto raiz (o mais antigo) DO ESCOPO e
+// passa ao switcher — cliente vê só os seus; admin, o mais antigo global (spec 009).
 export async function AppHeader({ title, breadcrumb }: AppHeaderProps) {
+  const current = await getCurrentUser();
   const project = await db.project.findFirst({
+    where: current?.role === "client" ? { userId: current.id } : {},
     orderBy: { createdAt: "asc" },
     select: { name: true },
   });

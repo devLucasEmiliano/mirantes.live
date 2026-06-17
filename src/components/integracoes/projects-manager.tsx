@@ -19,10 +19,11 @@ import {
   type RunStatus,
 } from "@/lib/github/map";
 
-// Gerência de projetos (spec 008) — substitui o ProjectCard mock. Lista, adiciona,
-// remove, sincroniza e, ao expandir, mostra o log de atividade (commits/branches/último
-// run). Fala SÓ com a API via fetch (nada de Prisma/segredo aqui); o gate admin é da
-// página. Após cada mutação chama router.refresh() (re-renderiza o Server Component).
+// Gerência de projetos (spec 008 → 009, em Integrações). Lista, adiciona, remove,
+// sincroniza e, ao expandir, mostra o log de atividade (commits/branches/último run).
+// Fala SÓ com a API via fetch (nada de Prisma/segredo aqui); o gate de auth (admin+
+// cliente) é da página. Cada usuário gere os SEUS projetos. Após cada mutação chama
+// router.refresh() (re-renderiza o Server Component).
 
 export interface ProjectListItem {
   id: string;
@@ -106,10 +107,11 @@ function timeAgo(iso: string): string {
 
 export function ProjectsManager({
   projects,
-  hasToken,
+  connection,
 }: {
   projects: ProjectListItem[];
-  hasToken: boolean;
+  /** Conexão GitHub do usuário atual — define o badge e a mensagem de sync. */
+  connection: { connected: boolean; githubLogin: string | null };
 }) {
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -177,8 +179,6 @@ export function ProjectsManager({
       } | null;
       if (res.status === 409 || json?.error === "already_exists") {
         setAddError("Esse repositório já está cadastrado.");
-      } else if (res.status === 403) {
-        setAddError("Sem permissão (apenas admin).");
       } else {
         setAddError("Não foi possível adicionar o projeto.");
       }
@@ -205,7 +205,7 @@ export function ProjectsManager({
       }
       const message =
         res.status === 409
-          ? "Configure o GITHUB_PAT no servidor para sincronizar."
+          ? "Conecte sua conta do GitHub para sincronizar."
           : res.status === 404
             ? "Projeto não encontrado."
             : res.status === 502
@@ -228,14 +228,14 @@ export function ProjectsManager({
     }
   }
 
-  function connection(project: ProjectListItem): {
+  function projectBadge(project: ProjectListItem): {
     label: string;
     dot: string;
     text: string;
   } {
-    if (!hasToken)
+    if (!connection.connected)
       return {
-        label: "Sem PAT",
+        label: "Sem conexão",
         dot: "bg-status-overdue",
         text: "text-status-overdue",
       };
@@ -272,7 +272,7 @@ export function ProjectsManager({
 
         {projects.map((project) => {
           const expanded = expandedId === project.id;
-          const conn = connection(project);
+          const conn = projectBadge(project);
           const state = activity[project.id];
           const busy = busyId === project.id;
           return (

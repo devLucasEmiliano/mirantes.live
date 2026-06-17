@@ -1,37 +1,68 @@
 # src/lib/github
 
 ## Propósito
-Integração com o GitHub (spec 008): único ponto HTTP com a API, mapeadores puros do
-payload e o núcleo de sincronização idempotente que persiste commits/branches/runs de um
-projeto no Postgres. Compartilhado pelo botão manual (API) e pelo worker de polling.
+Integração com o GitHub (specs 008 + 009): fluxo OAuth por usuário (token cifrado em
+repouso), único ponto HTTP com a API, mapeadores puros do payload e o núcleo de
+sincronização idempotente que persiste commits/branches/runs de um projeto no Postgres.
+Compartilhado pelo botão manual (API) e pelo worker de polling.
 
 ## Estrutura
-Arquivos avulsos; sem subpastas. `map.ts` é puro (unit); `sync.ts` toca o banco (integração).
+Arquivos avulsos; sem subpastas. `map.ts` é puro (unit); `sync.ts`/`connection.ts` tocam
+o banco (integração); `oauth.ts` é o único que fala com o github.com no fluxo OAuth;
+`oauth-state.ts` é puro (HMAC, sem rede/estado).
 
 ## Arquivos
-- **`client.ts`** — único ponto HTTP (SPEC §7). `fetch` nativo, **sem Octokit** (§0). Tipos
-  `GhCommit`/`GhBranch`/`GhWorkflowRun`, interface injetável `GitHubClient`, `class GitHubError`
-  e `createGitHubClient(token = env.GITHUB_PAT)` → **null** se não há PAT (chamador trata como
-  "sem token", sem rede). O PAT vai **só** no header `Authorization`; nunca em log, URL ou
-  mensagem de erro (SPEC §11). Métodos: `getRepo`, `listCommits`, `listBranches`,
-  `listWorkflowRuns` (envelope `{ workflow_runs }`).
+- **`oauth.ts`** — único módulo que fala com **github.com no fluxo OAuth**: troca o
+  `code` por token e busca o perfil. `interface GithubOAuthExchanger`
+  (`exchangeCodeForToken(code)` → `OAuthTokenResult`; `fetchGithubUser(token)` →
+  `GithubUser`), impl exportada como `githubOAuth`. `fetch` nativo (§0). Honra
+  `env.GITHUB_OAUTH_FAKE === "1")` → curto-circuita a rede (token/usuário fake) p/ o e2e.
+  Falhas viram `class GithubOAuthError` com mensagem que **nunca** contém secret/code
+  (`data.error` é código público do GitHub, ex.: `bad_verification_code`). Depende de
+  `@/lib/env`.
+- **`oauth-state.ts`** — anti-CSRF do OAuth (SPEC §11), **puro** e **sem estado no
+  servidor**, espelhando `auth/cookie.ts`. `createOAuthState(userId, now?)` →
+  `<userId>.<nonce>.<expiry>.<HMAC>` (HMAC-SHA256 com `SESSION_SECRET`, TTL 10min);
+  `verifyOAuthState(token, now?)` confere a assinatura **time-safe** ANTES de ler o
+  payload e checa expiração → `{ userId }` ou `null`. Exporta `OAUTH_STATE_COOKIE`
+  (`gg_gh_oauth_state`, httpOnly one-shot) e `OAUTH_STATE_COOKIE_PATH`
+  (`/api/github/oauth`, escopo restrito). Depende de `node:crypto` e `@/lib/env`.
+- **`connection.ts`** — serviço da conexão OAuth **cifrada por usuário** (1:1 em
+  `github_connections`). `connectGithub(userId, input)` cifra o token
+  (`crypto/secret`) e faz upsert; `disconnectGithub(userId)` (`deleteMany`, idempotente);
+  `getConnectionStatus(userId)` → `ConnectionStatus` com `select` deliberado que
+  **nunca** carrega os campos do token; `resolveUserToken(userId)` decifra o token do
+  dono p/ uso imediato (sync) e devolve discriminado: `not_connected` (sem row),
+  `invalid_token` (decifra lança — integridade do GCM) ou `{ ok:true, token }`. Depende
+  de `@/lib/db` e `@/lib/crypto/secret`.
+- **`client.ts`** — único ponto HTTP (SPEC §7). `fetch` nativo, **sem Octokit** (§0).
+  Tipos `GhCommit`/`GhBranch`/`GhWorkflowRun`, interface injetável `GitHubClient`,
+  `class GitHubError` e `createGitHubClient(token: string)` — **exige** o token (OAuth, do
+  dono do projeto) e retorna **sempre** um `GitHubClient` (sem default de env, sem
+  `null`). O token vai **só** no header `Authorization`; nunca em log, URL ou mensagem de
+  erro (SPEC §11). Métodos: `getRepo`, `listCommits`, `listBranches`, `listWorkflowRuns`
+  (envelope `{ workflow_runs }`).
 - **`map.ts`** — puro, unit-testável. `mapCommit` (subject = 1ª linha; autor cascata
   nome→login→"desconhecido"), `summarizeCommitBatch`, `deriveRunStatus` (status+conclusion →
   badge), `isValidRepoSlug` (charset `A-Za-z0-9._-`), `formatWeeklyDelta`. **Sem** I/O — pode
   ser importado por client components (só `import type` do client.ts, apagado em runtime).
-- **`sync.ts`** — `syncProject(projectId, client?)`: `project_not_found` / `no_token` (sem
-  client e sem PAT) / `github_error`; sucesso → `{ inserted:{commits,branches,runs}, lastSeenSha }`.
+- **`sync.ts`** — `syncProject(projectId, client?)`: `project_not_found` / `not_connected`
+  (sem client injetado e o token do dono não resolve via `resolveUserToken(project.userId)`)
+  / `github_error`; sucesso → `{ inserted:{commits,branches,runs}, lastSeenSha }`.
   Commits via `createMany(skipDuplicates)` na unique `(project,sha)`; branches upsert
   `(project,name)` + remoção das ausentes; runs upsert `(project,run_id)`; avança
   `lastSeenSha`/`lastPolledAt`. Deixa `// TODO(spec-timeline)` p/ o evento `commit.batch`.
 - **`worker.ts`** — `runGitHubSyncLoop({ intervalMs })`: percorre `db.project.findMany` chamando
-  `syncProject`, loga só contagens (NUNCA o PAT), sobrevive a erro por-projeto, encerra em
+  `syncProject`, loga só contagens (NUNCA o token), sobrevive a erro por-projeto, encerra em
   SIGINT/SIGTERM. Rodado por `bun run src/lib/github/worker.ts` (script `worker:github`). Sem teste
   (fino) — o núcleo coberto é `syncProject`.
 
 ## O que NÃO vai aqui
 - **Sem UI/JSX.** Lógica de servidor + tipos.
-- **Sem expor o PAT** — só no header; jamais em log/resposta/URL.
+- **Sem expor o token** — só no header `Authorization`; jamais em log/resposta/URL. O
+  token decifrado por `resolveUserToken` é p/ uso imediato em memória, não p/ devolver.
+- **Sem chamar o github.com fora dos pontos certos** — o fluxo OAuth fala só por
+  `oauth.ts`; as chamadas de dados, só por `client.ts`.
 - **Sem regra de metas/eventos/SSE** — Timeline (evento `commit.batch` + PUBLISH) é spec futura;
   aqui fica só o `// TODO(spec-timeline)`.
 - **Sem Octokit ou libs novas** — `fetch` nativo (§0).

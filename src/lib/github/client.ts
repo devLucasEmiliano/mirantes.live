@@ -1,7 +1,5 @@
-import { env } from "@/lib/env";
-
 // Único ponto HTTP com o GitHub (SPEC §7). `fetch` nativo — sem Octokit (CLAUDE.md §0).
-// O PAT vive só em `env.GITHUB_PAT` (segredo de servidor) e NUNCA aparece em mensagem
+// O token (OAuth, do dono do projeto) chega por parâmetro e NUNCA aparece em mensagem
 // de erro, log ou URL: vai apenas no header Authorization. A interface `GitHubClient`
 // é injetável p/ o sync ser testado com stub (tests/setup/github.ts), sem rede.
 
@@ -97,14 +95,11 @@ async function ghGet<T>(path: string, token: string): Promise<T> {
 }
 
 /**
- * Cria o cliente real do GitHub. Retorna **null** quando não há PAT (token vazio ou
- * ausente) — o chamador trata como "sem token" sem tocar a rede. Token default vem do
- * ambiente do servidor; em teste injeta-se o stub e este caminho não é exercido.
+ * Cria o cliente real do GitHub a partir de um token OAuth (do dono do projeto). O
+ * token vai SÓ no header Authorization. Em teste injeta-se o stub (tests/setup/github.ts)
+ * e este caminho não é exercido.
  */
-export function createGitHubClient(
-  token: string | undefined = env.GITHUB_PAT,
-): GitHubClient | null {
-  if (!token) return null;
+export function createGitHubClient(token: string): GitHubClient {
   const auth = token;
   return {
     async getRepo({ owner, repo }) {

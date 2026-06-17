@@ -3,7 +3,7 @@ import { syncProject } from "./sync";
 
 // Worker de polling do GitHub (SPEC §7): a cada `intervalMs`, percorre todos os projetos
 // e chama o MESMO núcleo `syncProject` do botão manual. Loga só contagens de `inserted`
-// (NUNCA o PAT). Sobrevive a erro por-projeto. Encerra limpo em SIGINT/SIGTERM.
+// (NUNCA o token). Sobrevive a erro por-projeto. Encerra limpo em SIGINT/SIGTERM.
 // Rodado por `bun run src/lib/github/worker.ts` (script `worker:github`). Sem testes
 // (fino) — o núcleo coberto é `syncProject`.
 
@@ -30,7 +30,7 @@ async function syncAllOnce(): Promise<void> {
           `[github-sync] ${slug}: +${commits} commits, ${branches} branches, ${runs} runs`,
         );
       } else {
-        // no_token / project_not_found / github_error — nunca expõe o PAT.
+        // not_connected / project_not_found / github_error — nunca expõe o token.
         console.warn(`[github-sync] ${slug}: ${result.error}`);
       }
     } catch (error) {

@@ -17,9 +17,17 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
       REDIS_URL: process.env.TEST_REDIS_URL ?? "",
       SESSION_SECRET: process.env.SESSION_SECRET ?? "",
-      // Hermético: força "sem PAT" no teste (cobre o caso no_token do syncProject)
-      // mesmo que o Bun auto-carregue um .env com GITHUB_PAT preenchido.
-      GITHUB_PAT: "",
+      // OAuth App do GitHub (spec 009). CLIENT_ID/SECRET nunca vão à rede nos
+      // testes: connection usa tokens literais e o e2e usa GITHUB_OAUTH_FAKE.
+      GITHUB_OAUTH_CLIENT_ID:
+        process.env.GITHUB_OAUTH_CLIENT_ID ?? "test-client-id",
+      GITHUB_OAUTH_CLIENT_SECRET:
+        process.env.GITHUB_OAUTH_CLIENT_SECRET ?? "test-client-secret",
+      // Chave AES-256-GCM real (32 bytes base64) — cifra de verdade nos testes (§5.3).
+      GITHUB_TOKEN_ENC_KEY:
+        process.env.GITHUB_TOKEN_ENC_KEY ??
+        "CC0ZHvIj+wPc9tkJ3t/H8JbtGdAAYCjFJ6wS+bjDujs=",
+      APP_BASE_URL: process.env.APP_BASE_URL ?? "http://localhost:3000",
     },
   },
 });

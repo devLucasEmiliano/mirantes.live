@@ -8,13 +8,19 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 ## Estrutura
 - `auth/` — autenticação (senha, cookie assinado, DAL de sessão, rate-limit). Ver `auth/DOC.md`.
 - `account/` — serviços de conta (perfil, senha, avatar, iniciais), testáveis fora do Next. Ver `account/DOC.md`.
-- `github/` — integração GitHub (client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
+- `crypto/` — cifra simétrica em repouso (AES-256-GCM) do token OAuth do GitHub. Ver `crypto/DOC.md`.
+- `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
 ## Arquivos
 - **`env.ts`** — valida `process.env` com zod (`DATABASE_URL`, `REDIS_URL`,
-  `SESSION_SECRET` ≥32, `GITHUB_PAT?`). Exporta `env` já tipado; lança no boot se
-  algo faltar. Importado por `db.ts`, `redis.ts` e `auth/cookie.ts`.
+  `SESSION_SECRET` ≥32). OAuth do GitHub por usuário (spec 009): saiu o `GITHUB_PAT`
+  global; entraram `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`,
+  `GITHUB_TOKEN_ENC_KEY` (validada: precisa decodificar p/ **32 bytes** base64),
+  `APP_BASE_URL` (url, monta o `redirect_uri` e os 303 de retorno) e
+  `GITHUB_OAUTH_FAKE?` (opcional, "1" curto-circuita a rede no e2e). Exporta `env` já
+  tipado; lança no boot se algo faltar. Importado por `db.ts`, `redis.ts`,
+  `auth/cookie.ts`, `crypto/secret.ts` e `github/*` (oauth, oauth-state, client).
 - **`db.ts`** — singleton do **Prisma Client** (padrão `globalThis` p/ hot-reload).
   No Prisma 7 o client exige driver adapter: usa `@prisma/adapter-pg` com
   `env.DATABASE_URL`. O pool `pg` é configurado com `keepAlive`, `idleTimeoutMillis`
@@ -25,10 +31,13 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - **`home-snapshot.ts`** — `buildHomeSnapshot()`, `writeHomeSnapshot()` (→ Redis
   `home:snapshot`) e `readHomeSnapshot()` (← Redis, com fallback estático). Conteúdo
   público e não sensível (nome, tagline, flag "no ar", timestamp).
-- **`projects.ts`** — serviço de Projetos (spec 008): `createProject`/`listProjects`/`getProject`/
-  `deleteProject` (retornos discriminados `ok`) + consumidores da Visão Geral `weeklyCommitStats`
-  (janelas 7d/7–14d) e `latestCommit`. Valida o slug (de `github/map`) antes de gravar; colisão
-  `(owner,repo)` (P2002) → `already_exists`. Única porta ao Postgres no domínio de projetos.
+- **`projects.ts`** — serviço de Projetos (specs 008 + 009), **escopado por papel**: novo
+  tipo `Scope = { role:"admin" } | { role:"client"; userId }` + helper `scopeForUser(user)`
+  (admin = global; client = só os seus). `createProject` carimba o `userId` do dono;
+  `listProjects`/`getProject`/`deleteProject`/`weeklyCommitStats`/`latestCommit` recebem o
+  `Scope` e filtram por dono (admin sem filtro). Retornos discriminados `ok`. Valida o slug
+  (de `github/map`) antes de gravar; colisão `(userId,owner,repo)` (P2002) → `already_exists`
+  (o mesmo repo coexiste p/ donos diferentes). Única porta ao Postgres no domínio de projetos.
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
 - **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). Mock/UI.
 - **`mock-data.ts`** — dados mock do front-end (serão substituídos pela API real). `mockProject`

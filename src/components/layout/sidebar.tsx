@@ -5,6 +5,7 @@ import {
   Clock3,
   LayoutDashboard,
   LogOut,
+  Plug,
   Settings,
   Target,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { label: "Metas", href: "/dashboard/metas", icon: Target },
   { label: "Timeline", href: "/dashboard/timeline", icon: Clock3 },
   { label: "Monitoramento", href: "/dashboard/monitoramento", icon: Activity },
+  { label: "Integrações", href: "/dashboard/integracoes", icon: Plug },
   {
     label: "Configurações",
     href: "/dashboard/configuracoes",

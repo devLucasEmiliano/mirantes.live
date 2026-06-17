@@ -7,7 +7,7 @@
 
 ## 1. Visão geral
 
-Sistema para um desenvolvedor solo apresentar o progresso de projetos a um único cliente. O **admin** cria e edita conteúdo; o **cliente** apenas visualiza, com atualização em tempo real (sem refresh). Dedicado a um único cliente.
+Sistema para um desenvolvedor solo apresentar o progresso de projetos a clientes. O **admin** cria e edita conteúdo e **vê tudo**; o **cliente** visualiza, com atualização em tempo real (sem refresh). **Projetos têm dono** (spec 009): cada cliente vê e gere **apenas os seus**; o admin vê todos.
 
 **Projeto é a raiz do domínio** (spec 008): cada **Projeto = exatamente 1 repositório GitHub**. O sistema é **multi-projeto** — metas, atividades (commits) e quedas penduram em `project_id` (cada nessas suas specs). Por ora a fundação cria `Project` + dados do GitHub e o seletor/cards consomem o real; metas/timeline/monitoramento seguem por evoluir.
 
@@ -26,22 +26,23 @@ Além do acompanhamento de metas, o produto inclui um subsistema de **monitorame
 | Progresso de meta-pai | Calculado (média simples dos filhos) |
 | Deleção | Soft delete (arquivar), em cascata |
 | Notificações por email | Não |
-| Módulos | Visão Geral, Metas, Timeline, Monitoramento, Configurações |
+| Módulos | Visão Geral, Metas, Timeline, Monitoramento, Integrações, Configurações |
 
 ### Telas (menu)
 1. **Visão Geral** — painel-resumo do projeto (cards + atividade recente + status resumido).
 2. **Metas** — árvore hierárquica de metas.
 3. **Timeline** — feed cronológico unificado de atividade.
 4. **Monitoramento** — uptime, status de serviços, incidentes, latência.
-5. **Configurações** — área exclusiva do admin (serviços, GitHub, retenção).
+5. **Integrações** — conexão do GitHub (OAuth por usuário) + gestão dos próprios projetos. Aberta a admin **e** cliente (cada um vê/gere só os seus; admin vê todos).
+6. **Configurações** — área exclusiva do admin (serviços, retenção, ferramentas).
 
 ---
 
 ## 2. Papéis e visibilidade
 
-- **admin** (você): cria/edita/arquiva metas, gerencia **projetos** (cada um = 1 repositório GitHub: adiciona/remove/sincroniza), configura serviços monitorados, marca visibilidade de eventos, gerencia retenção. Vê tudo. **Configurações** segue admin-only.
-- **client** (cliente único): somente leitura. Vê Visão Geral, Metas, Timeline e Monitoramento. **Não** vê a tela de Configurações nem nenhum dado de configuração.
-- **Sem cadastro público.** A conta do cliente é provisionada pelo admin (seed/script). Não há conceito de múltiplos "membros do projeto".
+- **admin** (você): cria/edita/arquiva metas, configura serviços monitorados, marca visibilidade de eventos, gerencia retenção. **Vê e gere todos os projetos** (de qualquer dono). **Configurações** segue admin-only.
+- **client** (cliente): em Metas/Timeline/Monitoramento é leitura. **Projetos são por dono** (spec 009): o cliente **cria, vê, sincroniza e remove apenas os seus**, e conecta a **sua própria** conta do GitHub — tudo na tela **Integrações** (aberta a admin **e** cliente). **Não** vê a tela de Configurações.
+- **Sem cadastro público.** As contas (admin e clientes) são provisionadas por seed/script. Não há signup nem UI de gestão de contas.
 
 ---
 
@@ -153,9 +154,9 @@ Três estados por serviço: **Online · Degradado · Offline**.
 ## 8. Integração GitHub (commits, Actions, branches)
 
 - Provedor: **GitHub**. **Cada Projeto = exatamente 1 repositório** (spec 008).
-- Captura por **polling da API** (worker de fundo) **e** por **sincronização manual** ("Sincronizar Agora" em Configurações) — ambos sobre o mesmo núcleo idempotente.
+- Captura por **polling da API** (worker de fundo) **e** por **sincronização manual** ("Sincronizar Agora" em **Integrações**) — ambos sobre o mesmo núcleo idempotente, usando o token do **dono** do projeto.
 - Sincroniza e persiste: **commits** (dedupe por SHA), **GitHub Actions** (workflow runs) e **branches** (com a default), além de nome/branch padrão do repo.
-- Autenticação por **Personal Access Token (PAT)** armazenado como **segredo de servidor** (nunca exposto ao cliente, em log nem em URL).
+- Autenticação por **OAuth por usuário** (spec 009): cada usuário conecta a **própria** conta ("Conectar GitHub"); o token OAuth é guardado **cifrado em repouso** (AES-256-GCM) no Postgres e usado só no header Authorization. Nunca exposto ao cliente, em log nem em URL.
 - Alimenta o card "Commits Semanais", o bloco "último commit" e o log de atividade do projeto; gerará eventos `commit` na Timeline (spec futura).
 
 ---
@@ -164,9 +165,10 @@ Três estados por serviço: **Online · Degradado · Offline**.
 
 Tela exclusiva do admin (cliente não acessa nem vê). Contém:
 - **Serviços monitorados**: adicionar/editar/remover; tipo de check (HTTP/Docker), URL/container, status codes OK, threshold de latência, intervalo de polling, N falhas para incidente.
-- **Projetos** (spec 008): adicionar (owner/repo)/remover/**sincronizar agora**; ao expandir, log de atividade (commits recentes, branches, status do último CI). PAT lido do servidor (env); intervalo de polling do worker.
 - **Retenção da Timeline**: janela em dias (configurável).
 - **Conta**: editar **nome, email e foto** (upload de imagem) do perfil + troca de senha do usuário logado (spec 007).
+
+> **Projetos e GitHub saíram daqui** (spec 009): a gestão de projetos (adicionar/remover/**sincronizar**) e a **conexão OAuth do GitHub** vivem agora em **Integrações** — tela própria, aberta a admin **e** cliente (cada um só os seus). Ver §8.
 
 ---
 
@@ -203,7 +205,7 @@ Todos passam por: grava no Postgres → registra evento → publica no Redis →
 | Histórico de uptime | Uma linha por check |
 | Incidente automático | Após N falhas seguidas (default 3) + manual |
 | Docker socket inacessível | Offline (conta downtime) |
-| Projetos / Commits | Projeto = 1 repo GitHub; sync de commits + Actions + branches por polling **e** manual; dedupe por SHA; PAT no servidor |
+| Projetos / Commits | Projeto = 1 repo GitHub **com dono** (spec 009); cliente vê/gere só os seus, admin todos; sync de commits + Actions + branches por polling **e** manual; dedupe por SHA; **OAuth por usuário, token cifrado no banco** (sai o PAT global) |
 | Saúde do projeto | 0.5 progresso / 0.3 pontualidade / 0.2 uptime |
 | Tempo médio | Calculado (criação→conclusão) |
 | Total de metas | Só ativas |
@@ -213,7 +215,7 @@ Todos passam por: grava no Postgres → registra evento → publica no Redis →
 | Arquivar pai | Cascata |
 | due_date | Obrigatória |
 | Timeline | Feed unificado, retenção configurável |
-| Membros | Não existem (cliente único) |
+| Contas / Projetos | Por seed (admin + clientes); sem cadastro público; **projetos por dono** (spec 009) |
 | Visibilidade de evento | Admin marca; automáticos visíveis por padrão |
 | Sessão | 7 dias, sliding |
 | Senha | Troca logado, sem reset público |

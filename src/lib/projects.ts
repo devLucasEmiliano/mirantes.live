@@ -8,11 +8,33 @@ import {
 import { db } from "@/lib/db";
 import { isValidRepoSlug } from "./github/map";
 
-// Serviço de Projetos: CRUD + consumidores de leitura (estatística semanal de commits
-// e último commit) para a Visão Geral. Retornos discriminados (`ok`) p/ o Route Handler
-// mapear a HTTP. Única porta de acesso ao Postgres no domínio de projetos.
+// Serviço de Projetos: CRUD + leituras (estatística semanal e último commit) p/ a Visão
+// Geral. Tudo ESCOPADO por papel (spec 009): admin enxerga tudo; client só os seus.
+// Retornos discriminados (`ok`) p/ o Route Handler mapear a HTTP. Única porta ao Postgres
+// no domínio de projetos.
+
+/** Quem consulta: admin (global) ou um client (limitado aos seus projetos). */
+export type Scope = { role: "admin" } | { role: "client"; userId: string };
+
+/** Cláusula `where` por dono conforme o escopo (admin = sem filtro). */
+function ownerWhere(scope: Scope): Prisma.ProjectWhereInput {
+  return scope.role === "admin" ? {} : { userId: scope.userId };
+}
+
+/** Filtro por dono via relação `project` (p/ leituras sobre commits). */
+function commitOwnerWhere(scope: Scope): Prisma.CommitWhereInput {
+  return scope.role === "admin" ? {} : { project: { userId: scope.userId } };
+}
+
+/** Deriva o escopo do usuário logado (usado por rotas e páginas). */
+export function scopeForUser(user: { id: string; role: string }): Scope {
+  return user.role === "admin"
+    ? { role: "admin" }
+    : { role: "client", userId: user.id };
+}
 
 export interface CreateProjectInput {
+  userId: string;
   name: string;
   owner: string;
   repo: string;
@@ -48,8 +70,9 @@ export interface LatestCommit {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Cria 1 projeto = 1 repo. Valida o slug owner/repo ANTES de tocar o banco (nada é
- * gravado em slug inválido). Colisão de `(owner, repo)` (Prisma P2002) → already_exists.
+ * Cria 1 projeto = 1 repo, carimbando o dono (`userId`). Valida o slug ANTES de tocar o
+ * banco. Colisão de `(userId, owner, repo)` (P2002) → already_exists — o mesmo repo pode
+ * coexistir para usuários diferentes.
  */
 export async function createProject(
   input: CreateProjectInput,
@@ -59,7 +82,12 @@ export async function createProject(
   }
   try {
     const project = await db.project.create({
-      data: { name: input.name, owner: input.owner, repo: input.repo },
+      data: {
+        userId: input.userId,
+        name: input.name,
+        owner: input.owner,
+        repo: input.repo,
+      },
     });
     return { ok: true, project };
   } catch (error) {
@@ -73,16 +101,24 @@ export async function createProject(
   }
 }
 
-/** Lista projetos em ordem de criação (mais antigo primeiro). */
-export async function listProjects(): Promise<{ projects: Project[] }> {
-  const projects = await db.project.findMany({ orderBy: { createdAt: "asc" } });
+/** Lista projetos do escopo em ordem de criação (mais antigo primeiro). */
+export async function listProjects(
+  scope: Scope,
+): Promise<{ projects: Project[] }> {
+  const projects = await db.project.findMany({
+    where: ownerWhere(scope),
+    orderBy: { createdAt: "asc" },
+  });
   return { projects };
 }
 
-/** Carrega 1 projeto com seu log de atividade recente (commits/branches/runs). */
-export async function getProject(id: string): Promise<GetProjectResult> {
-  const project = await db.project.findUnique({
-    where: { id },
+/** Carrega 1 projeto do escopo + atividade. Alheio/inexistente → not_found. */
+export async function getProject(
+  id: string,
+  scope: Scope,
+): Promise<GetProjectResult> {
+  const project = await db.project.findFirst({
+    where: { id, ...ownerWhere(scope) },
     include: {
       commits: { orderBy: { committedAt: "desc" }, take: 10 },
       branches: { orderBy: { name: "asc" } },
@@ -93,45 +129,51 @@ export async function getProject(id: string): Promise<GetProjectResult> {
   return { ok: true, project };
 }
 
-/** Remove 1 projeto; CASCADE leva commits/branches/runs juntos. P2025 → not_found. */
-export async function deleteProject(id: string): Promise<DeleteProjectResult> {
-  try {
-    await db.project.delete({ where: { id } });
-    return { ok: true };
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      return { ok: false, error: "not_found" };
-    }
-    throw error;
-  }
+/**
+ * Remove 1 projeto do escopo (CASCADE leva commits/branches/runs). `deleteMany` com o
+ * filtro de dono é atômico: 0 apagadas (alheio/inexistente) → not_found.
+ */
+export async function deleteProject(
+  id: string,
+  scope: Scope,
+): Promise<DeleteProjectResult> {
+  const { count } = await db.project.deleteMany({
+    where: { id, ...ownerWhere(scope) },
+  });
+  if (count === 0) return { ok: false, error: "not_found" };
+  return { ok: true };
 }
 
 /**
- * Conta commits (todos os projetos — PRD §5) na janela atual (≤7d) e na anterior
- * (7–14d), p/ o card "Commits da Semana" e sua variação %.
+ * Conta commits do escopo na janela atual (≤7d) e na anterior (7–14d), p/ o card
+ * "Commits da Semana" e sua variação %.
  */
-export async function weeklyCommitStats(): Promise<{
+export async function weeklyCommitStats(scope: Scope): Promise<{
   count: number;
   previousCount: number;
 }> {
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * DAY_MS);
   const fourteenDaysAgo = new Date(now - 14 * DAY_MS);
+  const owner = commitOwnerWhere(scope);
   const [count, previousCount] = await Promise.all([
-    db.commit.count({ where: { committedAt: { gte: sevenDaysAgo } } }),
     db.commit.count({
-      where: { committedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
+      where: { ...owner, committedAt: { gte: sevenDaysAgo } },
+    }),
+    db.commit.count({
+      where: {
+        ...owner,
+        committedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo },
+      },
     }),
   ]);
   return { count, previousCount };
 }
 
-/** O commit mais recente entre todos os projetos, com o nome do projeto. Null se vazio. */
-export async function latestCommit(): Promise<LatestCommit | null> {
+/** O commit mais recente do escopo, com o nome do projeto. Null se vazio. */
+export async function latestCommit(scope: Scope): Promise<LatestCommit | null> {
   const commit = await db.commit.findFirst({
+    where: commitOwnerWhere(scope),
     orderBy: { committedAt: "desc" },
     include: { project: { select: { name: true } } },
   });

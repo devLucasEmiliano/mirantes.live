@@ -5,9 +5,10 @@ import { ProgressRing } from "@/components/shared/progress-ring";
 import { StatCard } from "@/components/shared/stat-card";
 import { TimelineFeed } from "@/components/shared/timeline-feed";
 import { UptimePanel } from "@/components/shared/uptime-panel";
+import { requireUser } from "@/lib/auth/session";
 import { formatWeeklyDelta } from "@/lib/github/map";
 import { mockEvents, mockGoals, mockSummary } from "@/lib/mock-data";
-import { latestCommit, weeklyCommitStats } from "@/lib/projects";
+import { latestCommit, scopeForUser, weeklyCommitStats } from "@/lib/projects";
 
 export const metadata: Metadata = {
   title: "Visão Geral — Mirantes.Live",
@@ -27,10 +28,12 @@ export default async function DashboardPage() {
   const done = mockSummary.completedGoals;
   const total = mockSummary.totalGoals;
 
-  // Reais (spec 008): card "Commits da Semana" + bloco "último commit". Resto segue mock.
+  // Reais (spec 008/009): card "Commits da Semana" + bloco "último commit", ESCOPADOS
+  // pelo papel (cliente só os seus). Resto segue mock.
+  const scope = scopeForUser(await requireUser());
   const [weekly, latest] = await Promise.all([
-    weeklyCommitStats(),
-    latestCommit(),
+    weeklyCommitStats(scope),
+    latestCommit(scope),
   ]);
   const weeklyDelta = formatWeeklyDelta(weekly.count, weekly.previousCount);
 

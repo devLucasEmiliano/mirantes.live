@@ -4,8 +4,12 @@ import { syncProject } from "@/lib/github/sync";
 import { ghBranch, ghCommit, ghRun, makeStubClient } from "../setup/github";
 
 async function seedProject() {
+  const owner = await db.user.create({
+    data: { email: "owner@x.com", passwordHash: "x", role: "admin" },
+  });
   return db.project.create({
     data: {
+      userId: owner.id,
       name: "Mirantes",
       owner: "devlucasemiliano",
       repo: "mirantes.live",
@@ -157,8 +161,8 @@ it("projeto inexistente → project_not_found", async () => {
   expect(res).toEqual({ ok: false, error: "project_not_found" });
 });
 
-it("sem PAT e sem client injetado → no_token (sem rede)", async () => {
+it("dono sem conexão e sem client injetado → not_connected (sem rede)", async () => {
   const project = await seedProject();
-  const res = await syncProject(project.id); // env de teste não define GITHUB_PAT
-  expect(res).toEqual({ ok: false, error: "no_token" });
+  const res = await syncProject(project.id); // dono não tem GithubConnection
+  expect(res).toEqual({ ok: false, error: "not_connected" });
 });

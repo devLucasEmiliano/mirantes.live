@@ -16,4 +16,6 @@ export default function globalSetup() {
   // Pré-seed do log de atividade (commits/branch/run) do projeto dev — determinístico
   // p/ a jornada de Projetos (spec 008). Idempotente; roda no runtime real (bun).
   execSync("bun run tests/e2e/seed-activity.ts", { stdio: "inherit", env });
+  // Projeto do cliente (cliente-owner/cliente-repo) p/ a jornada de Integrações (spec 009).
+  execSync("bun run tests/e2e/seed-connections.ts", { stdio: "inherit", env });
 }

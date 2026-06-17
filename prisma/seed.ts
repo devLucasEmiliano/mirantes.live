@@ -33,9 +33,10 @@ const DEV_PROJECT = {
 
 async function main() {
   console.log("→ Semeando usuários (upsert por email)...");
+  let adminId = "";
   for (const user of DEV_USERS) {
     const passwordHash = await hashPassword(user.password);
-    await db.user.upsert({
+    const row = await db.user.upsert({
       where: { email: user.email },
       update: { passwordHash, role: user.role, name: user.name },
       create: {
@@ -45,15 +46,22 @@ async function main() {
         name: user.name,
       },
     });
+    if (row.role === "admin") adminId = row.id;
   }
+  if (!adminId) throw new Error("seed: usuário admin não encontrado");
 
-  console.log("→ Semeando projeto dev (upsert por owner/repo)...");
+  // Projeto dev pertence ao admin (spec 009: todo projeto tem dono). Sem token no seed.
+  console.log("→ Semeando projeto dev (upsert por dono + owner/repo)...");
   await db.project.upsert({
     where: {
-      owner_repo: { owner: DEV_PROJECT.owner, repo: DEV_PROJECT.repo },
+      userId_owner_repo: {
+        userId: adminId,
+        owner: DEV_PROJECT.owner,
+        repo: DEV_PROJECT.repo,
+      },
     },
     update: { name: DEV_PROJECT.name },
-    create: DEV_PROJECT,
+    create: { ...DEV_PROJECT, userId: adminId },
   });
 
   console.log(
