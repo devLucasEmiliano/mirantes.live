@@ -15,7 +15,7 @@ test("timeline mostra commits e CI reais do projeto", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto("/dashboard/timeline");
   await expect(page.getByText("feat: pré-seed e2e")).toBeVisible();
-  await expect(page.getByText(/CI .*#1: sucesso/i)).toBeVisible();
+  await expect(page.getByText(/CI #1.*sucesso/i)).toBeVisible();
 });
 
 test("trocar de projeto no header filtra o feed", async ({ page }) => {

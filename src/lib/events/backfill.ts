@@ -25,18 +25,23 @@ export async function backfillEvents(): Promise<{
   );
   const commits = await db.commit.findMany({
     orderBy: { committedAt: "asc" },
-    include: { project: { select: { repo: true } } },
+    include: { project: { select: { repo: true, defaultBranch: true } } },
   });
   const commitInputs: EventInput[] = commits
     .filter((c) => !seenCommits.has(key(c.projectId, c.sha)))
     .map((c) =>
-      commitToEvent(c.projectId, c.project.repo, {
-        sha: c.sha,
-        message: c.message,
-        author: c.author,
-        isMerge: c.isMerge,
-        committedAt: c.committedAt,
-      }),
+      commitToEvent(
+        c.projectId,
+        c.project.repo,
+        c.project.defaultBranch ?? "—",
+        {
+          sha: c.sha,
+          message: c.message,
+          author: c.author,
+          isMerge: c.isMerge,
+          committedAt: c.committedAt,
+        },
+      ),
     );
 
   // 2) ci.run p/ cada run `completed` sem evento (dedupe por projectId+runId). Reusa

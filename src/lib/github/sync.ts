@@ -81,7 +81,7 @@ export async function syncProject(
     const commitEvents: EventInput[] = commitRows
       .filter((c) => !existingShas.has(c.sha))
       .map((c) =>
-        commitToEvent(projectId, project.repo, {
+        commitToEvent(projectId, project.repo, defaultBranch, {
           sha: c.sha,
           message: c.message,
           author: c.author,

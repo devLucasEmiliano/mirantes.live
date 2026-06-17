@@ -13,13 +13,16 @@ acessa o banco (integração/seed).
 ## Arquivos
 - **`emit.ts`** — puro, unit-testável. Converte commit/run em **`EventInput`** (linha pronta
   p/ `createMany`, antes de tocar o banco) e decide quando o CI vira evento:
-  - `commitToEvent(projectId, repo, c: MappedCommit)` → `commit.created` (ou `commit.merged`
-    quando `c.isMerge` — ícone diferente na Timeline; `source:"commit"`, `refId: sha`,
-    `title: subject`, `detail: "<autor> · <repo>"`, `visibleToClient:true`,
+  - `commitToEvent(projectId, repo, branch, c: MappedCommit)` → `commit.created` (ou
+    `commit.merged` quando `c.isMerge` — título limpo via `mergeTitle`; `source:"commit"`,
+    `refId: sha`, `detail: "<autor> · <repo> · <branch>"`, `visibleToClient:true`,
     `createdAt: committedAt` — o tempo do commit, não o da descoberta).
+  - `mergeTitle(message)` (puro) → limpa o título cru do merge: `"Merge pull request #5 from o/x"`
+    → `"Merge do PR #5"`; `"Merge branch 'X' into Y"` → `"Merge: 'X' → Y"`; fallback = msg crua.
   - `runToEvent(projectId, run: GhWorkflowRun)` → `ci.run` (`refId: String(run.id)`,
-    `title: "CI <name> #<run_number>: <label>"`, `detail: "branch <head_branch>"`,
-    `createdAt: new Date(run.updated_at)`).
+    `title: "<name> #<run_number> · <label>"` — **sem** "CI" (o ícone já diz);
+    `detail: "<head_branch> · <duração>"` via `formatRunDuration`; `createdAt: updated_at`).
+  - `formatRunDuration(início, fim)` (puro) → `"45s"`/`"1m 23s"`/`"2m"`/`"1h 4m"`; `""` sem início.
   - `shouldEmitRunEvent(prev, incoming)` → `true` só na **transição p/ `completed`** (incoming
     concluído E prev inexistente ou ainda não-`completed`); re-sync de run já `completed` →
     `false` (idempotência por estado).

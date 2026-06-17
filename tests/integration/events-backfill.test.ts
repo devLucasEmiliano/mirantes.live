@@ -81,7 +81,8 @@ it("backfilla commits e runs concluídas já no banco; idempotente", async () =>
   expect(events.filter((e) => e.type === "ci.run")).toHaveLength(1);
   const ci = events.find((e) => e.type === "ci.run");
   expect(ci?.refId).toBe("5");
-  expect(ci?.title).toBe("CI CI #5: sucesso");
+  expect(ci?.title).toBe("CI #5 · sucesso");
+  expect(ci?.detail).toBe("main · 5m"); // 12:00 → 12:05
 
   // 2ª passada não reemite (dedupe por projectId+refId).
   const again = await backfillEvents();

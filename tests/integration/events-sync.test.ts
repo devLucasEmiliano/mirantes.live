@@ -46,7 +46,7 @@ it("1º sync emite 1 evento por commit + 1 por run concluída", async () => {
   expect(events.filter((e) => e.type === "ci.run")).toHaveLength(2);
   const c1 = events.find((e) => e.refId === "a1");
   expect(c1?.title).toBe("feat: um");
-  expect(c1?.detail).toBe("Ana · mirantes.live");
+  expect(c1?.detail).toBe("Ana · mirantes.live · main");
   expect(c1?.createdAt).toEqual(new Date("2026-06-10T12:00:00Z")); // = committedAt
 });
 
@@ -68,7 +68,8 @@ it("commit de merge (2 parents) → evento commit.merged e Commit.isMerge", asyn
   expect(await db.event.count({ where: { type: "commit.merged" } })).toBe(1);
   const merge = await db.event.findFirst({ where: { type: "commit.merged" } });
   expect(merge?.refId).toBe("m1");
-  expect(merge?.title).toBe("Merge pull request #2 from o/feat");
+  expect(merge?.title).toBe("Merge do PR #2");
+  expect(merge?.detail).toBe("Ana · mirantes.live · main");
   const row = await db.commit.findFirst({ where: { sha: "m1" } });
   expect(row?.isMerge).toBe(true);
 });
@@ -109,7 +110,7 @@ it("run só vira evento na transição p/ completed", async () => {
   );
   const ci = await db.event.findMany({ where: { type: "ci.run" } });
   expect(ci).toHaveLength(1);
-  expect(ci[0]?.title).toBe("CI CI #9: sucesso");
+  expect(ci[0]?.title).toBe("CI #9 · sucesso");
 });
 
 it("2º sync com 1 commit novo emite exatamente 1 commit.created", async () => {
