@@ -85,7 +85,7 @@ estático. O conteúdo do snapshot é não sensível.
 |--------|------|-------|
 | id | bigint identity PK | monotônico — serve de `Last-Event-ID` |
 | source | text not null | `goal` \| `commit` \| `incident` |
-| type | text not null | `commit.created`, `ci.run` (spec 012); `goal.*` (013); `incident.*` (futura) |
+| type | text not null | `commit.created`, `commit.merged`, `ci.run` (spec 012); `goal.*` (013); `incident.*` (futura) |
 | ref_id | uuid/text null | sha do commit / `String(run_id)` / id da entidade |
 | project_id | uuid null | **spec 012**: projeto do evento (filtro do seletor + vitrine da home); `null` = global |
 | title | text not null | descrição curta exibida |
@@ -153,7 +153,7 @@ estático. O conteúdo do snapshot é não sensível.
 - `@@unique(user_id, owner, repo)` — o mesmo repo pode coexistir p/ donos diferentes; `@@index(user_id)`.
 
 **`commits`** — agora pendurado em `project_id` (não mais `repo_id`):
-| id uuid PK | project_id uuid FK→projects (on delete cascade) | sha text | message text (subject) | author text | committed_at timestamptz | created_at timestamptz |
+| id uuid PK | project_id uuid FK→projects (on delete cascade) | sha text | message text (subject) | author text | is_merge boolean default false (2+ parents → evento `commit.merged`) | committed_at timestamptz | created_at timestamptz |
 - `@@unique(project_id, sha)` — **dedupe** do sync. Índice `(project_id, committed_at)` p/ a janela semanal.
 
 **`branches`** — uma linha por branch viva no repo:

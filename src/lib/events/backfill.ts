@@ -13,11 +13,12 @@ export async function backfillEvents(): Promise<{
   commits: number;
   runs: number;
 }> {
-  // 1) commit.created p/ cada commit sem evento (dedupe por projectId+sha).
+  // 1) commit.created/commit.merged p/ cada commit sem evento (dedupe por projectId+sha; cobre
+  //    os DOIS tipos de commit p/ não duplicar um merge já emitido). O `type` sai de `isMerge`.
   const seenCommits = new Set(
     (
       await db.event.findMany({
-        where: { type: "commit.created" },
+        where: { type: { in: ["commit.created", "commit.merged"] } },
         select: { projectId: true, refId: true },
       })
     ).map((e) => key(e.projectId, e.refId)),
@@ -33,6 +34,7 @@ export async function backfillEvents(): Promise<{
         sha: c.sha,
         message: c.message,
         author: c.author,
+        isMerge: c.isMerge,
         committedAt: c.committedAt,
       }),
     );
@@ -87,4 +89,23 @@ export async function backfillEvents(): Promise<{
     });
   }
   return { commits: commitInputs.length, runs: runInputs.length };
+}
+
+// Auto-run quando executado direto (`bun run db:backfill` ou `bun run src/lib/events/backfill.ts`).
+// Backfilla o banco em DATABASE_URL — idempotente, seguro de repetir. O cast evita depender de
+// `bun-types` p/ `import.meta.main` no `tsc --noEmit` (mesmo idioma de github/worker.ts).
+if ((import.meta as ImportMeta & { main?: boolean }).main) {
+  backfillEvents()
+    .then((r) =>
+      console.log(
+        `[backfill] concluído: ${r.commits} commit.created, ${r.runs} ci.run.`,
+      ),
+    )
+    .catch((error) => {
+      console.error("[backfill] falhou:", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await db.$disconnect();
+    });
 }

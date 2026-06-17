@@ -35,13 +35,26 @@ export function ghCommit(
   sha: string,
   message = "feat: x",
   date = "2026-06-10T12:00:00Z",
+  parentCount = 1,
 ): GhCommit {
   return {
     sha,
     html_url: `https://github.com/o/r/commit/${sha}`,
     commit: { message, author: { name: "Ana", date } },
     author: { login: "ana-gh" },
+    parents: Array.from({ length: parentCount }, (_, i) => ({
+      sha: `${sha}-p${i}`,
+    })),
   };
+}
+
+/** Commit de merge (2 parents) → mapeia p/ `isMerge:true` / evento `commit.merged`. */
+export function ghMerge(
+  sha: string,
+  message = "Merge pull request #1 from o/feat",
+  date = "2026-06-10T12:00:00Z",
+): GhCommit {
+  return ghCommit(sha, message, date, 2);
 }
 export function ghBranch(name: string, sha = "deadbeef"): GhBranch {
   return { name, commit: { sha }, protected: false };

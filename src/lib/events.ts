@@ -94,7 +94,10 @@ export async function weeklyEventStats(
   };
   if (projectId) base.projectId = projectId;
   const [commits, ci, total] = await Promise.all([
-    db.event.count({ where: { ...base, type: "commit.created" } }),
+    // Merge é commit: conta `commit.created` + `commit.merged` no total de commits da semana.
+    db.event.count({
+      where: { ...base, type: { in: ["commit.created", "commit.merged"] } },
+    }),
     db.event.count({ where: { ...base, type: "ci.run" } }),
     db.event.count({ where: base }),
   ]);

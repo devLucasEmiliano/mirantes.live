@@ -62,6 +62,7 @@ export async function syncProject(
       sha: c.sha,
       message: c.message,
       author: c.author,
+      isMerge: c.isMerge,
       committedAt: c.committedAt,
     }));
     // SHAs já no banco ANTES do insert → os realmente novos viram evento `commit.created`.
@@ -84,6 +85,7 @@ export async function syncProject(
           sha: c.sha,
           message: c.message,
           author: c.author,
+          isMerge: c.isMerge,
           committedAt: c.committedAt,
         }),
       );

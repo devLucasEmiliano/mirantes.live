@@ -22,8 +22,13 @@ Componentes avulsos, de apresentação (Server Components por padrão). A única
 - **`goals-list.tsx`** — `GoalsList({ goals, title? })`: seção "Metas do Projeto" **estática**
   (grupos pai + filhos via `GoalRow`). A versão interativa (expandir/selecionar) é
   `metas/metas-view.tsx`.
-- **`timeline-feed.tsx`** — exporta `TimelineFeed` (card "Atividade Recente"),
-  `TimelineEventRow` e o helper `eventVisual(event)` (ícone/cor por tipo/fonte de evento).
+- **`event-visual.tsx`** — fonte ÚNICA de ícone + cor por evento (`eventVisual(event)`), usada pela
+  Timeline e pela Atividade Recente (antes a lógica vivia duplicada e divergente nos dois). A
+  categoria vem de `eventVisualKind` (`@/lib/events/visual`, puro); aqui só o mapa categoria →
+  {ícone lucide, cor}: commit=GitCommit (marrom), merge=GitMerge (roxo), ci=Workflow (azul),
+  metas/incidentes etc.
+- **`timeline-feed.tsx`** — exporta `TimelineFeed` (card "Atividade Recente") e `TimelineEventRow`
+  (o ícone/cor de cada linha vêm de `eventVisual`, em `event-visual.tsx`).
   Recebe eventos **reais** (`TimelineEvent`) por prop — consumido tanto pela home pública
   (`listShowcaseEvents`) quanto pelo dashboard (`listEvents`). `TimelineEventRow` renderiza o
   horário via `eventTime(new Date(event.createdAt))` (de `@/lib/events/format`), no lugar do

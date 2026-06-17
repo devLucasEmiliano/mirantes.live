@@ -7,6 +7,8 @@ export interface MappedCommit {
   sha: string;
   message: string;
   author: string;
+  /** 2+ parents no GitHub = commit de merge. */
+  isMerge: boolean;
   committedAt: Date;
 }
 
@@ -31,6 +33,7 @@ export function mapCommit(input: GhCommit): MappedCommit {
     sha: input.sha,
     message: subject,
     author,
+    isMerge: (input.parents?.length ?? 0) > 1,
     committedAt: new Date(input.commit.author.date),
   };
 }

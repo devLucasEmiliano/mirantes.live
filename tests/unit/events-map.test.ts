@@ -14,6 +14,7 @@ describe("commitToEvent", () => {
       sha: "a1",
       message: "feat: x",
       author: "Ana",
+      isMerge: false,
       committedAt,
     });
     expect(ev).toEqual({
@@ -26,6 +27,18 @@ describe("commitToEvent", () => {
       visibleToClient: true,
       createdAt: committedAt,
     });
+  });
+  it("commit de merge (isMerge) vira commit.merged", () => {
+    const ev = commitToEvent("p1", "mirantes.live", {
+      sha: "m1",
+      message: "Merge pull request #1 from o/feat",
+      author: "Ana",
+      isMerge: true,
+      committedAt: new Date("2026-06-10T12:00:00Z"),
+    });
+    expect(ev.type).toBe("commit.merged");
+    expect(ev.source).toBe("commit");
+    expect(ev.refId).toBe("m1");
   });
 });
 

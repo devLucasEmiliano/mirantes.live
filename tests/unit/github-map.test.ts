@@ -16,10 +16,12 @@ describe("mapCommit", () => {
         author: { name: "Ana", date: "2026-06-10T12:00:00Z" },
       },
       author: { login: "ana-gh" },
+      parents: [{ sha: "p0" }],
     });
     expect(row.sha).toBe("abc123");
     expect(row.message).toBe("feat: assunto");
     expect(row.author).toBe("Ana");
+    expect(row.isMerge).toBe(false);
     expect(row.committedAt).toEqual(new Date("2026-06-10T12:00:00Z"));
   });
   it("cai para login sem commit.author.name", () => {
@@ -31,6 +33,7 @@ describe("mapCommit", () => {
         author: { name: null, date: "2026-06-11T09:30:00Z" },
       },
       author: { login: "ghost" },
+      parents: [{ sha: "p0" }],
     });
     expect(row.author).toBe("ghost");
   });
@@ -43,8 +46,22 @@ describe("mapCommit", () => {
         author: { name: null, date: "2026-06-11T09:30:00Z" },
       },
       author: null,
+      parents: [{ sha: "p0" }],
     });
     expect(row.author).toBe("desconhecido");
+  });
+  it("marca isMerge quando há 2+ parents", () => {
+    const row = mapCommit({
+      sha: "m1",
+      html_url: "https://github.com/x/y/commit/m1",
+      commit: {
+        message: "Merge pull request #1 from o/feat",
+        author: { name: "Ana", date: "2026-06-10T12:00:00Z" },
+      },
+      author: { login: "ana-gh" },
+      parents: [{ sha: "a" }, { sha: "b" }],
+    });
+    expect(row.isMerge).toBe(true);
   });
 });
 

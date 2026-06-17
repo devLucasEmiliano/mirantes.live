@@ -1,36 +1,8 @@
-import {
-  CircleCheckBig,
-  CirclePlus,
-  GitCommitHorizontal,
-  Pencil,
-  TriangleAlert,
-} from "lucide-react";
 import Link from "next/link";
 import { eventTime } from "@/lib/events/format";
 import type { TimelineEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/** Ícone e cor por tipo de evento, conforme o design. */
-export function eventVisual(event: TimelineEvent): {
-  Icon: typeof Pencil;
-  color: string;
-} {
-  if (event.source === "commit") {
-    return { Icon: GitCommitHorizontal, color: "#8F5A3C" };
-  }
-  if (event.source === "incident") {
-    return event.type === "incident.opened"
-      ? { Icon: TriangleAlert, color: "#B54A4A" }
-      : { Icon: CircleCheckBig, color: "#4A7A5B" };
-  }
-  if (event.type === "goal.completed") {
-    return { Icon: CircleCheckBig, color: "#4A7A5B" };
-  }
-  if (event.type === "goal.created") {
-    return { Icon: CirclePlus, color: "#8F5A3C" };
-  }
-  return { Icon: Pencil, color: "#C2956A" };
-}
+import { eventVisual } from "./event-visual";
 
 export function TimelineEventRow({
   event,

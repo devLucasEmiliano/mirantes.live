@@ -102,6 +102,7 @@ model Commit {
   sha         String
   message     String // subject (1ª linha)
   author      String
+  isMerge     Boolean  @default(false) @map("is_merge") // 2+ parents no GitHub → evento commit.merged
   committedAt DateTime @map("committed_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -152,7 +153,7 @@ model WorkflowRun {
 model Event {
   id              BigInt   @id @default(autoincrement())
   source          String // goal | commit | incident
-  type            String // commit.created | ci.run | goal.* | incident.*
+  type            String // commit.created | commit.merged | ci.run | goal.* | incident.*
   refId           String?  @map("ref_id") // sha do commit / String(run_id) / goal id
   projectId       String?  @map("project_id") @db.Uuid
   project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)

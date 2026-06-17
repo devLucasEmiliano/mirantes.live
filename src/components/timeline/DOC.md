@@ -16,7 +16,8 @@ Arquivo único cliente (`"use client"`) — a interação (busca/filtro/paginaç
   de `@/lib/events/format` (recebe `nowIso` p/ agrupar Hoje/Ontem de forma determinística, sem
   data hardcoded). **"Carregar mais"** busca a próxima página via `GET /api/events?cursor=…`
   (propagando `projectId`). O painel **"RESUMO DA SEMANA"** mostra contagens reais de
-  `weekSummary` (`commits`/`ci`/`total`). Helper interno: `feedVisual` (ícone/cor por tipo/fonte).
+  `weekSummary` (`commits`/`ci`/`total`). Ícone/cor de cada evento via `eventVisual` (compartilhado,
+  `components/shared/event-visual`; commit ≠ merge ≠ CI por `type`).
   O painel **"METAS MAIS ATIVAS"** foi **ocultado** (sem mock; volta com metas reais na spec 013).
   A janela "PERÍODO" (De/Até) segue estática.
 

@@ -7,14 +7,15 @@ e a formatação são **puros** (unit-testáveis); só o backfill toca o Postgre
 paginada/escopada da timeline mora em `../events.ts` (o arquivo), não aqui.
 
 ## Estrutura
-Arquivos avulsos, sem subpastas. `emit.ts`/`format.ts` são puros (unit); `backfill.ts`
+Arquivos avulsos, sem subpastas. `emit.ts`/`format.ts`/`visual.ts` são puros (unit); `backfill.ts`
 acessa o banco (integração/seed).
 
 ## Arquivos
 - **`emit.ts`** — puro, unit-testável. Converte commit/run em **`EventInput`** (linha pronta
   p/ `createMany`, antes de tocar o banco) e decide quando o CI vira evento:
-  - `commitToEvent(projectId, repo, c: MappedCommit)` → `commit.created` (`source:"commit"`,
-    `refId: sha`, `title: subject`, `detail: "<autor> · <repo>"`, `visibleToClient:true`,
+  - `commitToEvent(projectId, repo, c: MappedCommit)` → `commit.created` (ou `commit.merged`
+    quando `c.isMerge` — ícone diferente na Timeline; `source:"commit"`, `refId: sha`,
+    `title: subject`, `detail: "<autor> · <repo>"`, `visibleToClient:true`,
     `createdAt: committedAt` — o tempo do commit, não o da descoberta).
   - `runToEvent(projectId, run: GhWorkflowRun)` → `ci.run` (`refId: String(run.id)`,
     `title: "CI <name> #<run_number>: <label>"`, `detail: "branch <head_branch>"`,
@@ -32,13 +33,21 @@ acessa o banco (integração/seed).
   - `eventDateGroup(date, now)` → cabeçalho do grupo do dia: `"Hoje — 11 Jun 2026"` /
     `"Ontem — 10 Jun 2026"` / `"3 Jun 2026"` (mais antigo, sem prefixo; dia **sem** zero à
     esquerda, casando o design). `MONTHS_PT` interno. Sem dependências externas.
+- **`visual.ts`** — puro, unit-testável. `eventVisualKind(event)` → categoria visual decidida pelo
+  **`type`** (`merge`/`commit`/`ci`/`goal-*`/`incident-*`/`generic`), **não** pelo `source` — commit
+  e CI compartilham `source:"commit"` e antes colidiam no mesmo ícone. O componente
+  `components/shared/event-visual` mapeia a categoria → {ícone lucide, cor}. Exporta
+  `EventVisualKind`. Sem lucide/JSX aqui (só a regra; os pixels ficam no componente).
 - **`backfill.ts`** — `backfillEvents(): Promise<{ commits; runs }>` — **idempotente**: cria
-  `commit.created` p/ cada commit sem evento e `ci.run` p/ cada run `completed` sem evento,
-  dedupe por **(projectId, refId)** (carrega os eventos existentes num `Set`). Reusa
+  `commit.created`/`commit.merged` (o `type` sai de `Commit.isMerge`) p/ cada commit sem evento e
+  `ci.run` p/ cada run `completed` sem evento, dedupe por **(projectId, refId)** cobrindo os **dois**
+  tipos de commit (carrega os eventos existentes num `Set`). Reusa
   `commitToEvent`/`runToEvent` (adaptando a linha do `WorkflowRun` à forma `GhWorkflowRun`),
   insere em **ordem ascendente de tempo** (`createdAt`) p/ ids cronológicos (âncora do SSE,
-  spec 014). Rodado pelo seed e2e (`tests/e2e/seed-events.ts`) e por `bun run`. Depende de
-  `@/lib/db` e `./emit`.
+  spec 014). Rodado pelo seed e2e (`tests/e2e/seed-events.ts`) e, em dev, direto via
+  **`bun run db:backfill`** (guard `import.meta.main` no fim do arquivo) — preenche a Timeline
+  com o histórico já sincronizado *antes* da spec 012 (commits novos passam a emitir no sync).
+  Depende de `@/lib/db` e `./emit`.
 
 ## O que NÃO vai aqui
 - **`emit.ts`/`format.ts` são puros** — sem I/O, sem Prisma, sem `next/*`. O `createMany`

@@ -16,7 +16,10 @@ export interface EventInput {
   createdAt: Date;
 }
 
-/** 1 commit novo → 1 `commit.created`. `createdAt` = quando o commit foi feito (não a descoberta). */
+/**
+ * 1 commit novo → 1 evento. Merge (2+ parents) vira `commit.merged`; o resto, `commit.created`
+ * (ícone diferente na Timeline). `createdAt` = quando o commit foi feito (não a descoberta).
+ */
 export function commitToEvent(
   projectId: string,
   repo: string,
@@ -24,7 +27,7 @@ export function commitToEvent(
 ): EventInput {
   return {
     source: "commit",
-    type: "commit.created",
+    type: c.isMerge ? "commit.merged" : "commit.created",
     refId: c.sha,
     projectId,
     title: c.message,

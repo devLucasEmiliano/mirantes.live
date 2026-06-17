@@ -17,6 +17,8 @@ export interface GhCommit {
   commit: { message: string; author: GhCommitAuthor };
   /** Conta GitHub resolvida — null quando o autor não tem conta vinculada. */
   author: { login: string } | null;
+  /** Pais do commit (o list endpoint os inclui). 2+ = merge → evento `commit.merged`. */
+  parents: { sha: string }[];
 }
 
 export interface GhBranch {

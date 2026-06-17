@@ -42,7 +42,7 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `null`). O token vai **só** no header `Authorization`; nunca em log, URL ou mensagem de
   erro (SPEC §11). Métodos: `getRepo`, `listCommits`, `listBranches`, `listWorkflowRuns`
   (envelope `{ workflow_runs }`) e `listRepos` (`GET /user/repos` — repos da conta do
-  usuário p/ o seletor; spec 010).
+  usuário p/ o seletor; spec 010). `GhCommit` carrega `parents` (2+ = merge → `commit.merged`).
 - **`repos.ts`** — serviço que lista os repos da conta conectada do usuário p/ o seletor de
   projetos (spec 010). `listUserRepos(userId, client?)`: resolve o token do dono PRIMEIRO (sem
   conexão → `not_connected`); depois, se `GITHUB_OAUTH_FAKE` → `FAKE_REPOS` (e2e sem rede),
@@ -50,7 +50,8 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   (`{owner,repo,fullName,private,defaultBranch}`); `GitHubError` → `github_error`. Cap de 100
   (a entrada manual da UI cobre a cauda). Depende de `client`/`connection`/`env`.
 - **`map.ts`** — puro, unit-testável. `mapCommit` (subject = 1ª linha; autor cascata
-  nome→login→"desconhecido"), `summarizeCommitBatch`, `deriveRunStatus` (status+conclusion →
+  nome→login→"desconhecido"; `isMerge` = 2+ parents → evento `commit.merged`),
+  `summarizeCommitBatch`, `deriveRunStatus` (status+conclusion →
   badge), `isValidRepoSlug` (charset `A-Za-z0-9._-`), `formatWeeklyDelta`. **Sem** I/O — pode
   ser importado por client components (só `import type` do client.ts, apagado em runtime).
 - **`sync.ts`** — `syncProject(projectId, client?)`: `project_not_found` / `not_connected`
@@ -59,8 +60,9 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   Commits via `createMany(skipDuplicates)` na unique `(project,sha)`; branches upsert
   `(project,name)` + remoção das ausentes; runs upsert `(project,run_id)`; avança
   `lastSeenSha`/`lastPolledAt`. **Emite eventos da Timeline** (spec 012, substitui o antigo
-  `// TODO(spec-timeline)`): consulta os SHAs já no banco **antes** do `createMany` e gera
-  `commit.created` (via `commitToEvent`) só p/ os realmente novos; p/ runs faz
+  `// TODO(spec-timeline)`): consulta os SHAs já no banco **antes** do `createMany` (que grava
+  `isMerge`) e gera `commit.created`/`commit.merged` (via `commitToEvent`, conforme `isMerge`)
+  só p/ os realmente novos; p/ runs faz
   `findUnique`→`shouldEmitRunEvent`→`upsert`, acumulando `ci.run` (via `runToEvent`) apenas na
   **transição p/ `completed`**; ao fim, `db.event.createMany` de todos. Importa de
   `@/lib/events/emit`. **Sem transação/PUBLISH** — o wrapper transacional + `PUBLISH
@@ -69,6 +71,13 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `syncProject`, loga só contagens (NUNCA o token), sobrevive a erro por-projeto, encerra em
   SIGINT/SIGTERM. Rodado por `bun run src/lib/github/worker.ts` (script `worker:github`). Sem teste
   (fino) — o núcleo coberto é `syncProject`.
+- **`backfill-merges.ts`** — backfill ÚNICO do passado: commits sincronizados ANTES da coluna
+  `is_merge` não sabiam ser merge. `backfillCommitMerges(clientFor?)` re-busca 1 página de commits
+  por projeto na branch padrão (a MESMA fonte do sync → cobre os commits já no banco), marca
+  `Commit.isMerge` por `parents>1` e vira os eventos `commit.created` → `commit.merged`. Idempotente;
+  `clientFor` é injetável (stub nos testes), default = token OAuth do dono (projeto sem conexão é
+  pulado). Rodado por `bun run db:backfill-merges`. Going-forward o sync já grava `isMerge` — isto é
+  só p/ o histórico. Depende de `@/lib/db`, `client` e `connection`.
 
 ## O que NÃO vai aqui
 - **Sem UI/JSX.** Lógica de servidor + tipos.

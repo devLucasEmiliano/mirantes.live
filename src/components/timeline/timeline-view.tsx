@@ -1,15 +1,8 @@
 "use client";
 
-import {
-  Archive,
-  CircleCheckBig,
-  CirclePlus,
-  GitCommitHorizontal,
-  Pencil,
-  Search,
-  TriangleAlert,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { eventVisual } from "@/components/shared/event-visual";
 import { eventDateGroup, eventTime } from "@/lib/events/format";
 import type { TimelineEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -23,31 +16,6 @@ const FILTER_CHIPS = [
 ] as const;
 
 type FilterKey = (typeof FILTER_CHIPS)[number]["key"];
-
-/** Ícone/cor dos eventos no feed da Timeline (paleta desta tela no design). */
-function feedVisual(event: TimelineEvent): {
-  Icon: typeof Pencil;
-  color: string;
-} {
-  if (event.source === "commit") {
-    return { Icon: GitCommitHorizontal, color: "#8F5A3C" };
-  }
-  if (event.source === "incident") {
-    return event.type === "incident.opened"
-      ? { Icon: TriangleAlert, color: "#B54A4A" }
-      : { Icon: CircleCheckBig, color: "#4A7A5B" };
-  }
-  if (event.type.endsWith(".completed")) {
-    return { Icon: CircleCheckBig, color: "#4A7A5B" };
-  }
-  if (event.type.endsWith(".created")) {
-    return { Icon: CirclePlus, color: "#A38979" };
-  }
-  if (event.type.endsWith(".archived")) {
-    return { Icon: Archive, color: "#999999" };
-  }
-  return { Icon: Pencil, color: "#8F5A3C" };
-}
 
 interface TimelineViewProps {
   events: TimelineEvent[];
@@ -144,7 +112,7 @@ export function TimelineView({
               </span>
             </div>
             {groupEvents.map((event, index) => {
-              const { Icon, color } = feedVisual(event);
+              const { Icon, color } = eventVisual(event);
               return (
                 <div key={event.id} className="flex flex-col">
                   {index > 0 && <span className="mx-5 h-px bg-border-subtle" />}

@@ -1,7 +1,13 @@
 import { expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { syncProject } from "@/lib/github/sync";
-import { ghBranch, ghCommit, ghRun, makeStubClient } from "../setup/github";
+import {
+  ghBranch,
+  ghCommit,
+  ghMerge,
+  ghRun,
+  makeStubClient,
+} from "../setup/github";
 
 async function seedProject() {
   const owner = await db.user.create({
@@ -42,6 +48,29 @@ it("1º sync emite 1 evento por commit + 1 por run concluída", async () => {
   expect(c1?.title).toBe("feat: um");
   expect(c1?.detail).toBe("Ana · mirantes.live");
   expect(c1?.createdAt).toEqual(new Date("2026-06-10T12:00:00Z")); // = committedAt
+});
+
+it("commit de merge (2 parents) → evento commit.merged e Commit.isMerge", async () => {
+  const project = await seedProject();
+  await syncProject(
+    project.id,
+    makeStubClient({
+      defaultBranch: "main",
+      commits: [
+        ghCommit("a1", "feat: um"),
+        ghMerge("m1", "Merge pull request #2 from o/feat"),
+      ],
+      branches: [ghBranch("main", "m1")],
+      runs: [],
+    }),
+  );
+  expect(await db.event.count({ where: { type: "commit.created" } })).toBe(1);
+  expect(await db.event.count({ where: { type: "commit.merged" } })).toBe(1);
+  const merge = await db.event.findFirst({ where: { type: "commit.merged" } });
+  expect(merge?.refId).toBe("m1");
+  expect(merge?.title).toBe("Merge pull request #2 from o/feat");
+  const row = await db.commit.findFirst({ where: { sha: "m1" } });
+  expect(row?.isMerge).toBe(true);
 });
 
 it("re-sync idêntico não reemite eventos", async () => {
