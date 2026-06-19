@@ -20,8 +20,10 @@ Componentes avulsos, de apresentação (Server Components por padrão). A única
   anel de progresso em **SVG puro** (sem lib de gráfico — fora da stack §0). Usado em
   "Progresso Total", "Saúde do Projeto", "Uptime".
 - **`goals-list.tsx`** — `GoalsList({ goals, title? })`: seção "Metas do Projeto" **estática**
-  (grupos pai + filhos via `GoalRow`). A versão interativa (expandir/selecionar) é
-  `metas/metas-view.tsx`.
+  (grupos pai + filhos via `GoalRow`, em modo **`compact`** — sem badge X→Y nem barra — porque a
+  coluna da Visão Geral é estreita ~368px e senão o título colapsaria a 0). A versão interativa
+  (expandir/selecionar) é `metas/metas-view.tsx`. Recebe `Goal[]` reais (spec 014: a página passa
+  `listGoals → toGoalDTO`).
 - **`event-visual.tsx`** — fonte ÚNICA de ícone + cor por evento (`eventVisual(event)`), usada pela
   Timeline e pela Atividade Recente (antes a lógica vivia duplicada e divergente nos dois). A
   categoria vem de `eventVisualKind` (`@/lib/events/visual`, puro); aqui só o mapa categoria →

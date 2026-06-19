@@ -61,11 +61,12 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   `projectId?`, `percent?`, `derived?`, `startValue?/targetValue?/currentValue?` (X→Y) e
   `attributedCommits?` — é o tipo devolvido por `goals/dto.ts` (`toGoalDTO`). `TimelineEvent` foi
   remodelado (spec 012): `id` `string` (bigint via `String()`), `createdAt` ISO.
-- **`mock-data.ts`** — dados mock do front-end. `mockEvents` foi removido (spec 012). `mockGoals`
-  **deixou de ser consumido pela página de Metas** (spec 013 — `/dashboard/metas` lê `goals`
-  reais via `goals/service`); segue exportado só para os previews do dashboard/home (`GoalsList`),
-  até uma spec própria migrá-los. Seguem mock: `mockGoals`, `mockSummary`, `mockServices`,
-  `mockIncidents`, `mockProjectUptimeDays` e demais.
+- **`mock-data.ts`** — dados mock do front-end. `mockEvents` foi removido (spec 012). `mockGoals`/
+  `mockSummary` **deixaram de ser consumidos pelo dashboard**: `/dashboard/metas` (spec 013) e a
+  Visão Geral `/dashboard` (spec 014) leem metas/resumo reais via `goals/service` +
+  `summarizeGoals`. Ainda são usados **só** pela home pública de vitrine (`app/page.tsx`), até uma
+  spec própria migrá-la. Seguem mock: `mockGoals`, `mockSummary`, `mockServices`, `mockIncidents`,
+  `mockProjectUptimeDays` e demais.
 
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.

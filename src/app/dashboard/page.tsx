@@ -8,7 +8,9 @@ import { UptimePanel } from "@/components/shared/uptime-panel";
 import { requireUser } from "@/lib/auth/session";
 import { listEvents } from "@/lib/events";
 import { formatWeeklyDelta } from "@/lib/github/map";
-import { mockGoals, mockSummary } from "@/lib/mock-data";
+import { toGoalDTO } from "@/lib/goals/dto";
+import { listGoals } from "@/lib/goals/service";
+import { summarizeGoals } from "@/lib/goals/summary";
 import { scopeForUser, weeklyCommitStats } from "@/lib/projects";
 import { resolveSelectedProject } from "@/lib/projects/select";
 
@@ -16,19 +18,43 @@ export const metadata: Metadata = {
   title: "Visão Geral — Mirantes.Live",
 };
 
-export default async function DashboardPage() {
-  const done = mockSummary.completedGoals;
-  const total = mockSummary.totalGoals;
+const MONTHS_PT = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
 
-  // Reais (spec 008/012): card "Commits da Semana" + "Atividade Recente", ESCOPADOS pelo papel
-  // e filtrados pelo projeto selecionado (cookie; fallback = mais antigo). Resto segue mock.
+/** ISO AAAA-MM-DD → "D Mês" (mesmo padrão do goal-row); "—" quando não há data. */
+function formatDue(isoDate: string | null): string {
+  if (isoDate === null) return "—";
+  const [, month, day] = isoDate.split("-").map(Number);
+  return `${day} ${MONTHS_PT[(month ?? 1) - 1]}`;
+}
+
+export default async function DashboardPage() {
+  // Reais (spec 008/012): "Commits da Semana" + "Atividade Recente"; reais (spec 013/014): metas
+  // e resumo. Tudo ESCOPADO pelo papel e filtrado pelo projeto selecionado (cookie; fallback = mais
+  // antigo). Só monitoramento (UptimePanel) segue mock — fora do escopo da 014.
   const scope = scopeForUser(await requireUser());
   const selected = await resolveSelectedProject(scope);
   const projectId = selected?.id;
-  const [weekly, recent] = await Promise.all([
+  const [derived, weekly, recent] = await Promise.all([
+    listGoals(scope, projectId),
     weeklyCommitStats(scope, projectId),
     listEvents(scope, { projectId, limit: 7 }),
   ]);
+  const summary = summarizeGoals(derived);
+  const goals = derived.map(toGoalDTO);
+  const { done, total } = summary;
   const weeklyDelta = formatWeeklyDelta(weekly.count, weekly.previousCount);
 
   return (
@@ -38,7 +64,7 @@ export default async function DashboardPage() {
       <div className="flex gap-5 px-8 py-6">
         <StatCard title="Progresso Total" className="items-center gap-3.5">
           <ProgressRing
-            value={mockSummary.totalProgress}
+            value={summary.totalProgress}
             color="var(--color-status-done)"
           />
           <span className="font-body text-xs text-foreground-muted">
@@ -53,7 +79,7 @@ export default async function DashboardPage() {
           <span className="mt-auto flex h-1.5 overflow-hidden rounded-[3px]">
             <span
               className="bg-status-done"
-              style={{ width: `${(done / total) * 100}%` }}
+              style={{ width: `${total === 0 ? 0 : (done / total) * 100}%` }}
             />
             <span className="flex-1 bg-surface-elevated" />
           </span>
@@ -61,19 +87,19 @@ export default async function DashboardPage() {
 
         <StatCard title="Em Andamento">
           <span className="font-mono text-[32px] font-bold leading-none text-accent-secondary">
-            {mockSummary.inProgressGoals}
+            {summary.inProgress}
           </span>
           <span className="flex flex-col gap-1.5">
             <span className="flex items-center gap-2">
               <span className="size-1.5 rounded-full bg-status-in-progress" />
               <span className="font-body text-xs text-foreground-muted">
-                {mockSummary.inProgressGoals} em andamento
+                {summary.inProgress} em andamento
               </span>
             </span>
             <span className="flex items-center gap-2">
               <span className="size-1.5 rounded-full bg-status-todo" />
               <span className="font-body text-xs text-foreground-muted">
-                2 a fazer
+                {summary.todo} a fazer
               </span>
             </span>
           </span>
@@ -90,16 +116,16 @@ export default async function DashboardPage() {
 
         <StatCard title="Metas Atrasadas">
           <span className="font-mono text-[32px] font-bold leading-none text-status-overdue">
-            {mockSummary.overdueGoals}
+            {summary.overdue}
           </span>
           <span className="font-body text-xs text-foreground-muted">
-            próx. vencimento: {mockSummary.nextDueDate}
+            próx. vencimento: {formatDue(summary.nextDueDate)}
           </span>
         </StatCard>
       </div>
 
       <div className="flex flex-1 gap-6 px-8 pb-8">
-        <GoalsList goals={mockGoals.slice(0, 3)} />
+        <GoalsList goals={goals.slice(0, 3)} />
         <div className="flex w-[300px] shrink-0 flex-col gap-6">
           <TimelineFeed
             events={recent.events}

@@ -10,9 +10,11 @@ e formulário de criação. Consomem metas **reais** (`Goal` de `@/lib/types`, v
   são de apresentação.
 
 ## Arquivos
-- **`goal-row.tsx`** — `GoalRow({ goal, chevron?, showDue?, subdued?, className? })`: linha do
-  design + **short code** (`M-N`) e, em meta medível, o `current/target` (X→Y). Barra/percentual
-  usam `goal.percent ?? goal.progress`.
+- **`goal-row.tsx`** — `GoalRow({ goal, chevron?, showDue?, subdued?, compact?, className? })`:
+  linha do design + **short code** (`M-N`) e, em meta medível, o `current/target` (X→Y).
+  Barra/percentual usam `goal.percent ?? goal.progress`. **`compact`** (spec 014) oculta o badge
+  X→Y e a barra de progresso (mantém status + percentual) — usado no preview estreito da Visão
+  Geral (`GoalsList`); **off por padrão**, então a página de Metas renderiza igual.
 - **`goal-detail-panel.tsx`** — `GoalDetailPanel({ goal, parentTitle?, canMutate?, onClose?,
   onArchive?, onChangeStatus? })`: painel 380px. Mostra short code, X→Y, commits atribuídos.
   Admin (`canMutate`) edita status (folha; pai é derivado/read-only) e arquiva; cliente é

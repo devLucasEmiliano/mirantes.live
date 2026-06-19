@@ -10,6 +10,12 @@ interface GoalRowProps {
   showDue?: boolean;
   /** Linha-filha: título menor e sem negrito, indentada. */
   subdued?: boolean;
+  /**
+   * Modo condensado (preview da Visão Geral): oculta o badge de alvo (X/Y) e a
+   * barra de progresso para sobrar largura ao título na coluna estreita (~368px).
+   * Mantém status + percentual. Off por padrão → a página de Metas não muda.
+   */
+  compact?: boolean;
   className?: string;
 }
 
@@ -22,6 +28,7 @@ export function GoalRow({
   chevron,
   showDue,
   subdued,
+  compact,
   className,
 }: GoalRowProps) {
   return (
@@ -46,7 +53,7 @@ export function GoalRow({
       >
         {goal.title}
       </span>
-      {goal.targetValue != null && (
+      {!compact && goal.targetValue != null && (
         <span className="shrink-0 font-mono text-[11px] text-foreground-muted">
           {goal.currentValue ?? 0}/{goal.targetValue}
         </span>
@@ -56,12 +63,14 @@ export function GoalRow({
         overdue={goal.overdue}
         className="w-[108px]"
       />
-      <span className="h-[5px] w-20 overflow-hidden rounded-full bg-surface-elevated">
-        <span
-          className="block h-full rounded-full bg-accent-secondary"
-          style={{ width: `${goal.percent ?? goal.progress}%` }}
-        />
-      </span>
+      {!compact && (
+        <span className="h-[5px] w-20 overflow-hidden rounded-full bg-surface-elevated">
+          <span
+            className="block h-full rounded-full bg-accent-secondary"
+            style={{ width: `${goal.percent ?? goal.progress}%` }}
+          />
+        </span>
+      )}
       <span className="w-[38px] text-right font-mono text-xs text-foreground-primary">
         {goal.percent ?? goal.progress}%
       </span>

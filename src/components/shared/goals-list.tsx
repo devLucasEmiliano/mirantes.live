@@ -37,10 +37,11 @@ export function GoalsList({
         >
           <GoalRow
             goal={group}
+            compact
             chevron={<ChevronDown className="size-3.5 text-foreground-muted" />}
           />
           {group.children?.map((child) => (
-            <GoalRow key={child.id} goal={child} subdued />
+            <GoalRow key={child.id} goal={child} subdued compact />
           ))}
         </div>
       ))}

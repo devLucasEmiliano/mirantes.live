@@ -6,7 +6,7 @@ e **atribuição automática commit→meta** (LLM plugável + fallback determin�
 reutilizado pelo REST (`/api/goals*`), pelo MCP (`@/lib/mcp`) e pelos Server Components.
 
 ## Estrutura
-Puros (unit, sem I/O): `derive.ts`, `resolver.ts`, `emit.ts`, `dto.ts`. Com I/O (integração):
+Puros (unit, sem I/O): `derive.ts`, `resolver.ts`, `emit.ts`, `dto.ts`, `summary.ts`. Com I/O (integração):
 `service.ts` (único portão Postgres), `attribution.ts` (orquestrador do sync). `classifier.ts`
 fala com o LLM externo via `fetch` injetável (nunca lança).
 
@@ -33,6 +33,10 @@ fala com o LLM externo via `fetch` injetável (nunca lança).
   (`commit_goal_links` unique), devolve eventos `goal.*`.
 - **`dto.ts`** (puro) — `toGoalDTO(DerivedGoal): Goal` (JSON-safe; `dueDate` `AAAA-MM-DD`). Tipo
   único p/ REST, MCP e páginas.
+- **`summary.ts`** (puro) — `summarizeGoals(DerivedGoal[]): GoalsSummary` (spec 014). Achata a
+  árvore (pais + folhas) e conta por status/`overdue`; `totalProgress` = média dos `percent` de
+  **topo** (cada um já é o rollup do seu subarvore); `nextDueDate` = menor `dueDate` (ISO) entre
+  nós não-`done`. Alimenta os cards da Visão Geral com os MESMOS números reais da página de Metas.
 
 ## O que NÃO vai aqui
 - **Nenhum acesso Postgres fora de `service.ts`/`attribution.ts`** — os puros não importam Prisma.
