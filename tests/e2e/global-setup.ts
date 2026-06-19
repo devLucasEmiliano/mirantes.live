@@ -20,4 +20,6 @@ export default function globalSetup() {
   execSync("bun run tests/e2e/seed-connections.ts", { stdio: "inherit", env });
   // Eventos da timeline (spec 012): 2º projeto do admin + backfill dos commits/runs semeados.
   execSync("bun run tests/e2e/seed-events.ts", { stdio: "inherit", env });
+  // Metas da spec 013: metas reais (M-1 1/2, M-2 concluída) no projeto-vitrine do admin (idempotente).
+  execSync("bun run tests/e2e/seed-metas.ts", { stdio: "inherit", env });
 }

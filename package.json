@@ -15,6 +15,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "worker:github": "bun run src/lib/github/worker.ts",
+    "mcp": "bun run src/lib/mcp/entry.ts",
     "db:backfill": "bun run src/lib/events/backfill.ts",
     "db:backfill-merges": "bun run src/lib/github/backfill-merges.ts",
     "test": "vitest run",
@@ -23,6 +24,7 @@
     "test:all": "vitest run && playwright test"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@node-rs/argon2": "^2.0.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

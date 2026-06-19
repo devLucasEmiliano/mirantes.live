@@ -90,6 +90,20 @@ Rótulos em PT exibidos na UI: "A Fazer" / "Em Progresso" / "Concluído".
 ### 4.6 Ordenação
 - Metas têm campo de **posição** para ordenação manual entre irmãos.
 
+### 4.7 Metas medíveis (X→Y) — spec 013
+- Uma **meta-folha** pode carregar valores `start_value → target_value` com `current_value` corrente.
+- O **progresso** vira derivado da distância percorrida: `|current − start| / |target − start|`, em 0–100 (suporta ascendente `0→20` e descendente `20→0`; `start == target` → 100 se atingiu, senão 0).
+- Ao atingir o alvo, a meta vira **`done`** automaticamente (carimba `completed_at`).
+- Folha **sem alvo** mantém o progresso **manual** 0–100 (§4.3) — as duas formas coexistem.
+
+### 4.8 Código curto (M-N) — spec 013
+- Cada meta recebe um **código curto sequencial por projeto** (`M-1`, `M-2`, …), exibido na UI e usado como **keyword** na atribuição automática.
+
+### 4.9 Atualização automática por commits — spec 013
+- Commits sincronizados são **atribuídos a metas automaticamente**: um **classificador LLM decide** (runtime externo plugável, OpenAI-compatível ou via MCP) e, **se o LLM estiver offline**, cai para o **determinístico** — keyword (`M-12`/`meta #12`) → branch vinculada → vínculo manual.
+- Cada commit atribuído avança `current_value` por um **peso por tipo**: **commit = 1, merge = 5** (config por env). **CI não conta** como progresso (segue só na Timeline).
+- A atribuição é **idempotente** (anti double-count): um commit aplica a uma meta uma única vez; re-syncs não reprocessam.
+
 ---
 
 ## 5. Visão Geral (painel-resumo)
@@ -194,6 +208,11 @@ Tela exclusiva do admin (cliente não acessa nem vê). Contém:
 
 Todos passam por: grava no Postgres → registra evento → publica no Redis → SSE entrega.
 
+**Spec 013:** os eventos de Metas (`goal.created`/`goal.updated`/`goal.completed`/`goal.archived`)
+passam a ser **emitidos de fato** — nas mutações (service) **e no sync** (quando um commit avança
+uma meta; ver §4.9). O **PUBLISH/SSE** ainda fica para a spec 014; aqui os `goal.*` são só
+**gravados** em `events` (alimentam a Timeline).
+
 ---
 
 ## 12. Decisões registradas (resumo)
@@ -217,6 +236,10 @@ Todos passam por: grava no Postgres → registra evento → publica no Redis →
 | Progresso/status do pai | Read-only com filhos |
 | Arquivar pai | Cascata |
 | due_date | Obrigatória |
+| Metas medíveis (X→Y) | Folha pode usar `start→target` com `current`; progresso = `|Δ|`; alvo → `done` (spec 013) |
+| Código curto de meta | `M-N` sequencial por projeto (keyword + UI) (spec 013) |
+| Commit → meta | Atribuição automática: LLM decide → fallback determinístico (keyword/branch/manual); pesos commit=1/merge=5; CI não conta; idempotente (spec 013) |
+| Servidor MCP | stdio + token de serviço (→ admin), reusa o service das metas (spec 013) |
 | Timeline | Feed unificado, retenção configurável |
 | Contas / Projetos | Por seed (admin + clientes); sem cadastro público; **projetos por dono** (spec 009) |
 | Visibilidade de evento | Admin marca; automáticos visíveis por padrão |

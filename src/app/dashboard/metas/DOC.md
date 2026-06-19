@@ -1,22 +1,20 @@
 # src/app/dashboard/metas
 
 ## Propósito
-Rota autenticada `/dashboard/metas` — lista/árvore de metas do projeto. Subrota `nova/`
-para o formulário de criação.
+Rota autenticada `/dashboard/metas` — árvore de metas **reais** (spec 013) do escopo, filtrada
+pelo projeto selecionado. Subrota `nova/` para o formulário de criação.
 
 ## Estrutura
 - `page.tsx` — a tela de Metas.
 - `nova/` — formulário "Criar Nova Meta" (ver `nova/DOC.md`).
 
 ## Arquivos
-- **`page.tsx`** — `MetasPage` (Server Component). Define `metadata.title`
-  ("Metas — Mirantes.Live"), renderiza o `AppHeader` (título + breadcrumb) e o
-  `@/components/metas/metas-view` (`MetasView`), passando `mockGoals` (de `@/lib/mock-data`).
-  A interatividade (busca, expandir grupos, selecionar meta → painel de detalhe) está no
-  `MetasView` (cliente) — ver `src/components/metas/DOC.md`.
+- **`page.tsx`** — `MetasPage` (Server Component, async). `requireUser()` → `scopeForUser` →
+  `resolveSelectedProject(scope)` (cookie; fallback = mais antigo) → `listGoals(scope, projectId)`
+  → `map(toGoalDTO)` → `MetasView`. Passa `canMutate = user.role === "admin"`. Sem mais
+  `mockGoals`. Interatividade/mutações no `MetasView` (cliente).
 
 ## O que NÃO vai aqui
-- **Sem fetch real de metas** — dados ainda são `mockGoals`; o carregamento via DAL/banco e
-  o CRUD pertencem à spec de Metas.
-- **Sem acesso direto ao banco na página** — usar libs de `src/lib/*` quando a feature real
-  chegar. A guarda de sessão é do `dashboard/layout.tsx`.
+- **Sem `mockGoals`** — dados vêm de `@/lib/goals/service` (`listGoals`), escopados por papel.
+- **Sem acesso direto ao Prisma na página** — só via o service (único portão Postgres das metas).
+  A guarda de sessão base é do `dashboard/layout.tsx`; aqui `requireUser()` reforça e dá o escopo.

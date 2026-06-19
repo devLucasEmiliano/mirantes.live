@@ -33,6 +33,11 @@ export function GoalRow({
       )}
     >
       <span className="flex size-5 items-center justify-center">{chevron}</span>
+      {goal.shortCode && (
+        <span className="shrink-0 font-mono text-[11px] text-foreground-muted">
+          {goal.shortCode}
+        </span>
+      )}
       <span
         className={cn(
           "flex-1 truncate text-foreground-primary",
@@ -41,6 +46,11 @@ export function GoalRow({
       >
         {goal.title}
       </span>
+      {goal.targetValue != null && (
+        <span className="shrink-0 font-mono text-[11px] text-foreground-muted">
+          {goal.currentValue ?? 0}/{goal.targetValue}
+        </span>
+      )}
       <StatusBadge
         status={goal.status}
         overdue={goal.overdue}
@@ -49,11 +59,11 @@ export function GoalRow({
       <span className="h-[5px] w-20 overflow-hidden rounded-full bg-surface-elevated">
         <span
           className="block h-full rounded-full bg-accent-secondary"
-          style={{ width: `${goal.progress}%` }}
+          style={{ width: `${goal.percent ?? goal.progress}%` }}
         />
       </span>
       <span className="w-[38px] text-right font-mono text-xs text-foreground-primary">
-        {goal.progress}%
+        {goal.percent ?? goal.progress}%
       </span>
       {showDue && (
         <span

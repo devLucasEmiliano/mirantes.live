@@ -9,6 +9,12 @@ export const GOAL_STATUS_LABELS: Record<GoalStatus, string> = {
   done: "Concluído",
 };
 
+/** Commit atribuído a uma meta (spec 013) — exibido no painel de detalhe. */
+export interface AttributedCommit {
+  sha: string;
+  message: string;
+}
+
 export interface Goal {
   id: string;
   title: string;
@@ -19,8 +25,21 @@ export interface Goal {
   dueDate: string;
   /** Atrasada = dueDate no passado e status ≠ done (PRD §4.5). */
   overdue?: boolean;
-  description?: string;
+  description?: string | null;
   children?: Goal[];
+  // --- Spec 013 (aditivo): metas reais persistidas. Opcionais p/ não quebrar o mock antigo. ---
+  /** Código curto sequencial por projeto (M-1, M-2…). */
+  shortCode?: string;
+  projectId?: string | null;
+  /** Igual a `progress`; explícito p/ a barra X→Y. */
+  percent?: number;
+  /** true em metas-pai (progress/status derivados, read-only). */
+  derived?: boolean;
+  /** X→Y medível (folha). null = progresso manual 0–100. */
+  startValue?: number | null;
+  targetValue?: number | null;
+  currentValue?: number | null;
+  attributedCommits?: AttributedCommit[];
 }
 
 export type EventSource = "goal" | "commit" | "incident";

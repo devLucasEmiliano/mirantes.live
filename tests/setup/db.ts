@@ -5,13 +5,13 @@ import { db } from "@/lib/db";
 /**
  * Zera as tabelas entre testes (§5.3). TRUNCATE com CASCADE encadeia pelas FKs:
  * `users` limpa `sessions`/`avatars`; `projects` limpa `commits`/`branches`/
- * `workflow_runs`/`events` (spec 008/012). `events` é nomeado à parte porque os
- * eventos GLOBAIS (`project_id NULL`) não têm pai p/ cascatear; o TRUNCATE também
- * zera a identity bigint do `events`. RESTART IDENTITY zera as sequences.
+ * `workflow_runs`/`events`/`goals`/links (spec 008/012/013). `events` e `goals` são
+ * nomeados à parte porque os GLOBAIS (`project_id NULL`) não têm pai p/ cascatear; o
+ * TRUNCATE também zera a identity bigint do `events`. RESTART IDENTITY zera as sequences.
  */
 export async function truncateAll(): Promise<void> {
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE "users", "projects", "events" RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE "users", "projects", "events", "goals" RESTART IDENTITY CASCADE`,
   );
 }
 

@@ -13,7 +13,10 @@ que precisam de runtime Node (cookies, banco, Redis) — fora do render de compo
   conexão (`connection` desconecta). Ver `github/DOC.md`.
 - `events/` — `GET /api/events`: timeline paginada e escopada por papel (cursor). Ver
   `events/DOC.md`.
-- (demais grupos — goals, monitoring, stream… — entram nas suas specs.)
+- `goals/` — Metas (spec 013): coleção (`GET`/`POST`) + item `[id]` (`PATCH`/`DELETE`) +
+  `[id]/branch-link` e `[id]/commit-link`. Leitura escopada; mutações admin-only. Ver
+  `goals/DOC.md`.
+- (demais grupos — monitoring, stream… — entram nas suas specs.)
 
 ## Arquivos
 Nenhum arquivo direto nesta pasta; só subgrupos com `route.ts`.

@@ -28,6 +28,12 @@ export default defineConfig({
         process.env.GITHUB_TOKEN_ENC_KEY ??
         "CC0ZHvIj+wPc9tkJ3t/H8JbtGdAAYCjFJ6wS+bjDujs=",
       APP_BASE_URL: process.env.APP_BASE_URL ?? "http://localhost:3000",
+      // Spec 013: LLM sempre OFFLINE no teste (caminho determinístico); pesos fixos;
+      // token de serviço do MCP p/ os testes de auth/tools.
+      LLM_CLASSIFIER_KIND: "none",
+      GOAL_WEIGHT_COMMIT: "1",
+      GOAL_WEIGHT_MERGE: "5",
+      MCP_SERVICE_TOKEN: "test-mcp-token-aaaaaaaa",
     },
   },
 });

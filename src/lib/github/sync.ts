@@ -5,6 +5,8 @@ import {
   runToEvent,
   shouldEmitRunEvent,
 } from "@/lib/events/emit";
+import { attributeCommits } from "@/lib/goals/attribution";
+import type { CommitClassifier } from "@/lib/goals/classifier";
 import { createGitHubClient, type GitHubClient, GitHubError } from "./client";
 import { resolveUserToken } from "./connection";
 import { mapCommit } from "./map";
@@ -32,6 +34,7 @@ export type SyncResult =
 export async function syncProject(
   projectId: string,
   client?: GitHubClient,
+  opts?: { classifier?: CommitClassifier },
 ): Promise<SyncResult> {
   const project = await db.project.findUnique({ where: { id: projectId } });
   if (!project) return { ok: false, error: "project_not_found" };
@@ -151,9 +154,40 @@ export async function syncProject(
       },
     });
 
-    // Eventos da Timeline (spec 012): `commit.created` (novos) + `ci.run` (concluídos). Sem
-    // transação/PUBLISH aqui — o wrapper transacional + PUBLISH goals:updates entra na 014.
-    const eventInputs = [...commitEvents, ...runEvents];
+    // Atribuição automática commit→meta (spec 013): roda SÓ nos commits genuinamente novos
+    // (mesmo filtro do `commitEvents`), re-`findMany` p/ pegar o `id`. Try/catch próprio —
+    // falha do LLM NUNCA derruba o sync. Emite `goal.updated`/`goal.completed`.
+    const newShas = commitRows
+      .filter((c) => !existingShas.has(c.sha))
+      .map((c) => c.sha);
+    let goalEvents: EventInput[] = [];
+    if (newShas.length > 0) {
+      try {
+        const rows = await db.commit.findMany({
+          where: { projectId, sha: { in: newShas } },
+          select: {
+            id: true,
+            sha: true,
+            message: true,
+            author: true,
+            isMerge: true,
+            committedAt: true,
+          },
+        });
+        goalEvents = await attributeCommits(
+          projectId,
+          rows.map((r) => ({ ...r, branch: defaultBranch })),
+          { classifier: opts?.classifier },
+        );
+      } catch (err) {
+        console.error("[attrib] falhou; sync segue sem atribuição:", err);
+      }
+    }
+
+    // Eventos da Timeline (spec 012): `commit.created` (novos) + `ci.run` (concluídos) +
+    // `goal.*` (spec 013). Sem transação/PUBLISH aqui — o wrapper transacional + PUBLISH
+    // goals:updates entra na 014.
+    const eventInputs = [...commitEvents, ...runEvents, ...goalEvents];
     if (eventInputs.length > 0) {
       await db.event.createMany({
         data: eventInputs.map((e) => ({

@@ -28,6 +28,22 @@ const schema = z.object({
   APP_BASE_URL: z.string().url("APP_BASE_URL precisa ser uma URL válida"),
   // "1" curto-circuita a ida ao github.com no e2e (sem rede). Opcional.
   GITHUB_OAUTH_FAKE: z.string().optional(),
+  // --- Classificador LLM commit→meta (spec 013) — runtime externo OPCIONAL e plugável.
+  // Default `none` (offline) → atribuição cai no resolver determinístico. `http` fala
+  // OpenAI-compatível (Ollama/LM Studio/Unsloth) via fetch nativo; `mcp` via MCP.
+  LLM_CLASSIFIER_KIND: z.enum(["http", "mcp", "none"]).default("none"),
+  LLM_CLASSIFIER_BASE_URL: z.string().url().optional(),
+  LLM_CLASSIFIER_MODEL: z.string().optional(),
+  LLM_CLASSIFIER_API_KEY: z.string().optional(),
+  LLM_CLASSIFIER_TIMEOUT_MS: z.coerce.number().int().positive().default(4000),
+  // Peso por commit atribuído: avança `current_value` da meta. CI não conta (§spec 013).
+  GOAL_WEIGHT_COMMIT: z.coerce.number().default(1),
+  GOAL_WEIGHT_MERGE: z.coerce.number().default(5),
+  // Token de serviço do servidor MCP (stdio). Obrigatório p/ INICIAR o MCP (fail-closed);
+  // opcional no resto do app (o boot do Next não exige).
+  MCP_SERVICE_TOKEN: z.string().min(16).optional(),
+  MCP_TRANSPORT: z.enum(["stdio", "http"]).default("stdio"),
+  MCP_HTTP_PORT: z.coerce.number().int().positive().optional(),
 });
 
 function loadEnv() {

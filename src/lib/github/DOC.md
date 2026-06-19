@@ -54,7 +54,7 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `summarizeCommitBatch`, `deriveRunStatus` (status+conclusion →
   badge), `isValidRepoSlug` (charset `A-Za-z0-9._-`), `formatWeeklyDelta`. **Sem** I/O — pode
   ser importado por client components (só `import type` do client.ts, apagado em runtime).
-- **`sync.ts`** — `syncProject(projectId, client?)`: `project_not_found` / `not_connected`
+- **`sync.ts`** — `syncProject(projectId, client?, opts?: { classifier? })`: `project_not_found` / `not_connected`
   (sem client injetado e o token do dono não resolve via `resolveUserToken(project.userId)`)
   / `github_error`; sucesso → `{ inserted:{commits,branches,runs}, lastSeenSha }`.
   Commits via `createMany(skipDuplicates)` na unique `(project,sha)`; branches upsert
@@ -64,9 +64,12 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `isMerge`) e gera `commit.created`/`commit.merged` (via `commitToEvent`, conforme `isMerge`)
   só p/ os realmente novos; p/ runs faz
   `findUnique`→`shouldEmitRunEvent`→`upsert`, acumulando `ci.run` (via `runToEvent`) apenas na
-  **transição p/ `completed`**; ao fim, `db.event.createMany` de todos. Importa de
-  `@/lib/events/emit`. **Sem transação/PUBLISH** — o wrapper transacional + `PUBLISH
-  goals:updates` entra na spec 014.
+  **transição p/ `completed`**. **Atribuição de metas (spec 013):** após o `createMany` dos
+  commits, re-`findMany` os SHAs **novos** e chama `attributeCommits` (de `@/lib/goals/attribution`)
+  em **try/catch próprio** (falha do LLM nunca derruba o sync), concatenando os eventos `goal.*` ao
+  `eventInputs`; ao fim, `db.event.createMany` de todos. Importa de `@/lib/events/emit` e
+  `@/lib/goals/*`. **Sem transação/PUBLISH** — o wrapper transacional + `PUBLISH goals:updates`
+  entra na spec 014.
 - **`worker.ts`** — `runGitHubSyncLoop({ intervalMs })`: percorre `db.project.findMany` chamando
   `syncProject`, loga só contagens (NUNCA o token), sobrevive a erro por-projeto, encerra em
   SIGINT/SIGTERM. Rodado por `bun run src/lib/github/worker.ts` (script `worker:github`). Sem teste
@@ -85,7 +88,8 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   token decifrado por `resolveUserToken` é p/ uso imediato em memória, não p/ devolver.
 - **Sem chamar o github.com fora dos pontos certos** — o fluxo OAuth fala só por
   `oauth.ts`; as chamadas de dados, só por `client.ts`.
-- **Sem PUBLISH/SSE e sem `goal.*`** — o sync **emite** `commit.created`/`ci.run` no Postgres
-  (spec 012), mas o `PUBLISH goals:updates` + o stream ficam p/ a spec 014, e os eventos de
-  metas (`goal.*`) p/ a 013. Os mapeadores puros e o backfill vivem em `src/lib/events/`.
+- **Sem PUBLISH/SSE** — o sync **emite** `commit.created`/`ci.run` (spec 012) e, desde a spec 013,
+  `goal.*` (via `attributeCommits`) no Postgres; mas o `PUBLISH goals:updates` + o stream ficam p/
+  a spec 014. A regra de atribuição mora em `@/lib/goals/*` (não aqui); os mapeadores puros de
+  commit/run e o backfill vivem em `src/lib/events/`.
 - **Sem Octokit ou libs novas** — `fetch` nativo (§0).

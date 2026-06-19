@@ -12,6 +12,8 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - `events/` — eventos da Timeline (mapeadores puros commit/run, formatação de datas, backfill). Ver `events/DOC.md`.
 - `projects/` — seleção de projeto do header (função pura + resolvedor de cookie + Server Action). Ver `projects/DOC.md`.
+- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta (LLM plugável + fallback determinístico). Único portão Postgres em `goals/service.ts`. Ver `goals/DOC.md`.
+- `mcp/` — servidor **MCP** (stdio) de Metas (spec 013): expõe o service a ferramentas externas (Claude Code). Ver `mcp/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
 ## Arquivos
@@ -54,14 +56,16 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   Depende de `@/lib/db` e do `Scope` de `projects.ts`. (A escrita/emissão de eventos mora em
   `events/` e em `github/sync.ts`.)
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
-- **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). Mock/UI.
-  `TimelineEvent` foi remodelado (spec 012) p/ casar a linha real de `events`: `id` agora é
-  **`string`** (bigint serializado com `String()`) e `createdAt` **ISO** substitui o antigo
-  `timestamp`; os componentes formatam via `events/format.ts`.
-- **`mock-data.ts`** — dados mock do front-end (serão substituídos pela API real). `mockEvents`
-  foi **removido** (spec 012 — a Timeline e a Atividade Recente, no dashboard e na home, leem
-  `events` reais; sem consumidor de mock). `mockProject` já saíra (spec 008). Seguem mock:
-  `mockGoals`, `mockSummary`, `mockServices`, `mockIncidents`, `mockProjectUptimeDays` e demais.
+- **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). `Goal` foi
+  **estendido aditivamente** (spec 013) com campos opcionais das metas reais: `shortCode`,
+  `projectId?`, `percent?`, `derived?`, `startValue?/targetValue?/currentValue?` (X→Y) e
+  `attributedCommits?` — é o tipo devolvido por `goals/dto.ts` (`toGoalDTO`). `TimelineEvent` foi
+  remodelado (spec 012): `id` `string` (bigint via `String()`), `createdAt` ISO.
+- **`mock-data.ts`** — dados mock do front-end. `mockEvents` foi removido (spec 012). `mockGoals`
+  **deixou de ser consumido pela página de Metas** (spec 013 — `/dashboard/metas` lê `goals`
+  reais via `goals/service`); segue exportado só para os previews do dashboard/home (`GoalsList`),
+  até uma spec própria migrá-los. Seguem mock: `mockGoals`, `mockSummary`, `mockServices`,
+  `mockIncidents`, `mockProjectUptimeDays` e demais.
 
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.

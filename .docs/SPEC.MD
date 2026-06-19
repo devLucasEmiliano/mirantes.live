@@ -68,17 +68,27 @@ estático. O conteúdo do snapshot é não sensível.
 |--------|------|-------|
 | id | uuid PK | |
 | parent_id | uuid FK→goals null | null = meta de topo |
+| project_id | uuid FK→projects null | **spec 013** — null = meta global (fora da UI/atribuição) |
+| short_code | text not null | **spec 013** — `M-N` sequencial por projeto (keyword + UI) |
 | title | text not null | |
 | status | text not null | `todo` \| `in_progress` \| `done` (manual só em folhas) |
-| progress | smallint | 0–100, manual só em folhas |
+| progress | smallint | 0–100, manual só em folhas **sem alvo** |
 | due_date | date not null | obrigatória |
+| start_value / target_value / current_value | double null | **spec 013** — X→Y medível (folha). null = progresso manual |
 | position | integer not null | ordenação entre irmãos |
-| completed_at | timestamptz null | setado quando status→done (folha) |
+| completed_at | timestamptz null | setado quando status→done |
 | deleted_at | timestamptz null | soft delete |
 | created_at | timestamptz | default now() |
 
-- Índices: `(parent_id)`, `(deleted_at)`, `(due_date)`.
+- Índices: `(parent_id)`, `(deleted_at)`, `(due_date)`, `(project_id)`; unique `(project_id, short_code)`.
 - `progress`/`status` em pais são **ignorados** na leitura (recalculados); manter colunas mas tratá-las como derivadas no app.
+- **Medível (spec 013):** folha com `target_value` deriva o progresso de `|current−start|/|target−start|` (§5.5); sem `target_value`, segue o `progress` manual.
+
+### 2.9 `goal_branch_links`, `commit_goal_links`, `goal_code_counters` (atribuição automática — spec 013)
+- **`goal_branch_links`** — vínculo meta↔branch p/ atribuição determinística. `(goal_id, project_id, branch_name)`; unique `(project_id, branch_name)`.
+- **`commit_goal_links`** — aplicação **idempotente** de 1 commit a 1 meta. `(commit_id, goal_id, weight, method, applied_value)`; **unique `(commit_id, goal_id)`** (anti double-count). `method ∈ {llm, keyword, branch, manual}`.
+- **`goal_code_counters`** — sequência do short code por projeto. PK `project_id`, `next int`. Incremento atômico via `INSERT … ON CONFLICT DO UPDATE … RETURNING` (§5.7).
+- Todas com `ON DELETE CASCADE` a partir de `projects`/`goals`/`commits`.
 
 ### 2.4 `events` (timeline unificada)
 | coluna | tipo | notas |
@@ -202,10 +212,12 @@ estático. O conteúdo do snapshot é não sensível.
 | POST | `/api/auth/login` | público (rate-limited) | autentica, cria sessão |
 | POST | `/api/auth/logout` | autenticado | encerra sessão |
 | POST | `/api/auth/password` | autenticado | troca de senha (logado) |
-| GET | `/api/goals` | autenticado | árvore de metas ativas (com progresso/status derivados) |
-| POST | `/api/goals` | admin | cria meta |
-| PATCH | `/api/goals/:id` | admin | edita (status/%/data/título/posição) |
+| GET | `/api/goals` | autenticado (escopo) | árvore derivada do escopo; `?projectId` filtra; DTO via `toGoalDTO` (spec 013) |
+| POST | `/api/goals` | admin | cria meta (X→Y ou manual); cliente→403; projeto fora do escopo→404 (spec 013) |
+| PATCH | `/api/goals/:id` | admin | edita; pai com filhos editando progress/status → **409 has_children** (spec 013) |
 | DELETE | `/api/goals/:id` | admin | arquiva (soft delete, cascata) |
+| POST/DELETE | `/api/goals/:id/branch-link` | admin | vincula/desvincula branch↔meta (atribuição determinística) (spec 013) |
+| POST | `/api/goals/:id/commit-link` | admin | liga commit↔meta, idempotente (aplica peso 1×) (spec 013) |
 | GET | `/api/summary` | autenticado | dados dos 4 cards |
 | GET | `/api/events` | autenticado | timeline paginada (cliente só `visible_to_client`); **spec 012: filtro `projectId` + cursor** |
 | PATCH | `/api/events/:id` | admin | alterna visibilidade do evento |
@@ -263,6 +275,21 @@ request); fallback estático se ausente. O Postgres permanece a fonte de verdade
 ### 5.4 Atraso
 - Derivado em leitura: `overdue = due_date < current_date AND status != 'done'`.
 
+### 5.5 Progresso medível X→Y (spec 013)
+- `computePercent(start, target, current) = clamp(round(|current−start| / |target−start| · 100), 0, 100)`; `start==target` → 100 se `current==target`, senão 0 (anti /0). Suporta ascendente e descendente.
+- `applyWeight(start, target, current, weight)`: move `current` por `weight` na direção `sign(target−start)`, **clampando no alvo**.
+- Na leitura, folha medível usa `computePercent` no lugar do `progress` manual; ao atingir o alvo → `status = done`, `completed_at = now()`. (Puro em `@/lib/goals/derive`.)
+
+### 5.6 Atribuição automática commit→meta (spec 013)
+- Roda no `syncProject`, **só nos commits novos**. Candidatas = **folhas ativas** do projeto com short code.
+- Para cada commit: `resolveDeterministic` (hint) → `classifier.classify` (LLM). Resultado: LLM escolheu um candidato válido → `method = llm`; senão **fallback** determinístico (`keyword > branch > manual`); nada → sem atribuição.
+- Peso por tipo: `commit = GOAL_WEIGHT_COMMIT` (1), `merge = GOAL_WEIGHT_MERGE` (5). **CI não conta.**
+- **Idempotência:** `INSERT … commit_goal_links … ON CONFLICT DO NOTHING`; `count == 0` → já aplicado (no-op). Só então aplica o peso (`applyWeight`) e emite `goal.updated`/`goal.completed`.
+- O classificador externo **nunca derruba o sync** (try/catch próprio no `syncProject`).
+
+### 5.7 Short code (M-N) (spec 013)
+- `INSERT INTO goal_code_counters (project_id, next) VALUES (:p, 2) ON CONFLICT (project_id) DO UPDATE SET next = next + 1 RETURNING next` → código = `M-(next − 1)`. Atômico dentro da transação de criação.
+
 ---
 
 ## 6. Monitoramento — worker
@@ -298,9 +325,10 @@ request); fallback estático se ausente. O Postgres permanece a fonte de verdade
 
 ## 7. GitHub — worker + sync manual (spec 008)
 
-Núcleo único **`syncProject(projectId, client?)`** (em `src/lib/github/sync.ts`), compartilhado
+Núcleo único **`syncProject(projectId, client?, opts?)`** (em `src/lib/github/sync.ts`), compartilhado
 pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:github`) e pelo
-**botão manual** (`POST /api/projects/:id/sync`). Idempotente, por projeto:
+**botão manual** (`POST /api/projects/:id/sync`). `opts.classifier?` injeta o classificador LLM nos
+testes. Idempotente, por projeto:
 
 - **Repo/nome:** `getRepo` → atualiza `name` e `default_branch`.
 - **Commits:** `listCommits({ since: last_polled_at, sha: default_branch })` → `createMany(skipDuplicates)`
@@ -311,7 +339,11 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 - Erros: `project_not_found` / `not_connected` (dono sem conexão GitHub, sem rede) / `github_error` (borda HTTP/rede).
 - Eventos da Timeline (**spec 012**): **1 `commit.created` por commit novo** + **1 `ci.run` por run ao
   concluir** (transição p/ `completed`), idempotentes (dedupe por SHA no banco / por estado do run);
-  `backfillEvents` preenche o histórico. O `PUBLISH goals:updates` + SSE seguem **pendentes da spec 014**.
+  `backfillEvents` preenche o histórico.
+- **Atribuição de metas (spec 013):** após inserir os commits, `attributeCommits` (de
+  `@/lib/goals/attribution`) roda sobre os SHAs **novos** em **try/catch próprio** (falha do LLM
+  nunca derruba o sync) e os eventos `goal.*` resultantes entram no mesmo `db.event.createMany` (§5.6).
+- O `PUBLISH goals:updates` + SSE seguem **pendentes da spec 014**.
 - Token **OAuth do dono** do projeto, resolvido por `resolveUserToken(project.user_id)` (decifra a `github_connections` em memória); **nunca** em log, resposta de API ou URL (só no header Authorization). Sem conexão/token inválido → `not_connected`.
 - Cliente HTTP: `fetch` nativo, **sem Octokit** (CLAUDE.md §0); injetável p/ teste com stub.
 - **Conexão OAuth (spec 009):** `GET /api/github/oauth/start` gera um `state` assinado (HMAC + cookie httpOnly) e 307 ao GitHub; o `callback` valida o `state` (assinatura + igualdade byte-a-byte com o cookie + dono = usuário atual), troca o `code` pelo token (`src/lib/github/oauth.ts`; faked no e2e via `GITHUB_OAUTH_FAKE`) e grava a conexão cifrada (`src/lib/github/connection.ts`). Escopo OAuth: `repo read:user`.
@@ -385,5 +417,27 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 | Sessão | 7 dias, sliding | global |
 | Rate limit login | 5 / 15min / IP | global |
 | Heartbeat SSE | ~20s | global |
+| `LLM_CLASSIFIER_KIND` | `none` (offline) | global — `http`/`mcp` p/ runtime externo (spec 013) |
+| `LLM_CLASSIFIER_TIMEOUT_MS` | 4000 | global (spec 013) |
+| `GOAL_WEIGHT_COMMIT` / `GOAL_WEIGHT_MERGE` | 1 / 5 | global — peso da atribuição (spec 013) |
+| `MCP_SERVICE_TOKEN` | — (obrigatório p/ subir o MCP) | global — fail-closed (spec 013) |
+
+---
+
+## 13. Servidor MCP (spec 013)
+
+Processo **à parte** (`bun run mcp` → `src/lib/mcp/entry.ts`), transporte **stdio**, que expõe as
+Metas a ferramentas externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/goals/service`** do REST.
+
+- **Auth:** `resolveScopeFromToken` confere o `env.MCP_SERVICE_TOKEN`; válido → escopo **admin**.
+  **Fail-closed**: sem token configurado, o `entry.ts` recusa iniciar (exit 1).
+- **Transporte:** `StdioServerTransport` (`@modelcontextprotocol/sdk`). stdout é do protocolo; **logs
+  vão p/ stderr**. Saída limpa em SIGINT/SIGTERM.
+- **Tools:** `metas_list`, `metas_create`, `metas_update`, `metas_archive`, `metas_link_branch`,
+  `metas_link_commit` (este resolve `commitSha`→`commitId` no projeto da meta). Cada uma delega ao
+  handler em `mcp/tools.ts` → service; erro do service vira erro de tool.
+- **Reuso:** nenhuma lógica de metas mora no MCP — é só um adaptador (single source of truth no service).
+- **Fora de escopo (futuro):** transporte HTTP/SSE remoto e tokens por-usuário; aqui só stdio + token
+  de serviço.
 
 ---

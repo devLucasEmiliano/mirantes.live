@@ -88,6 +88,9 @@ model Project {
   branches      Branch[]
   workflowRuns  WorkflowRun[]
   events        Event[]
+  goals           Goal[]
+  goalBranchLinks GoalBranchLink[]
+  goalCodeCounter GoalCodeCounter?
 
   @@unique([userId, owner, repo])
   @@index([userId])
@@ -105,6 +108,7 @@ model Commit {
   isMerge     Boolean  @default(false) @map("is_merge") // 2+ parents no GitHub → evento commit.merged
   committedAt DateTime @map("committed_at")
   createdAt   DateTime @default(now()) @map("created_at")
+  goalLinks   CommitGoalLink[]
 
   @@unique([projectId, sha]) // chave de dedupe do sync
   @@index([projectId, committedAt]) // janela semanal (weeklyCommitStats)
@@ -166,4 +170,81 @@ model Event {
   @@index([visibleToClient, createdAt(sort: Desc)])
   @@index([projectId, createdAt(sort: Desc)])
   @@map("events")
+}
+
+/// Meta hierárquica (PRD §4 + spec 013). Folha = progress/status manual (0–100) OU X→Y medível;
+/// pai = progress/status DERIVADOS na leitura (read-only, recomputados por deriveTree). project_id
+/// como events (nullable = meta global; client só vê metas de projeto próprio via Scope). Soft
+/// delete em cascata (deleted_at).
+model Goal {
+  id           String   @id @default(uuid()) @db.Uuid
+  parentId     String?  @map("parent_id") @db.Uuid
+  parent       Goal?    @relation("GoalChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Goal[]   @relation("GoalChildren")
+  projectId    String?  @map("project_id") @db.Uuid
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shortCode    String   @map("short_code")                   // M-1, M-2… por projeto (keyword + UI)
+  title        String
+  description  String?
+  status       String   @default("todo")                     // todo | in_progress | done
+  progress     Int      @default(0)                           // 0–100 manual só em folha SEM target
+  dueDate      DateTime @map("due_date") @db.Date
+  startValue   Float?   @map("start_value")                   // X→Y medível (folha). null = manual 0–100
+  targetValue  Float?   @map("target_value")
+  currentValue Float?   @map("current_value")
+  position     Int
+  completedAt  DateTime? @map("completed_at")
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  branchLinks  GoalBranchLink[]
+  commitLinks  CommitGoalLink[]
+
+  @@unique([projectId, shortCode])
+  @@index([parentId])
+  @@index([deletedAt])
+  @@index([dueDate])
+  @@index([projectId])
+  @@map("goals")
+}
+
+/// Vínculo meta↔branch p/ atribuição determinística (commit na branch / merge dela → meta).
+model GoalBranchLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  goalId     String   @map("goal_id") @db.Uuid
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  projectId  String   @map("project_id") @db.Uuid
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  branchName String   @map("branch_name")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([projectId, branchName])
+  @@index([goalId])
+  @@map("goal_branch_links")
+}
+
+/// Aplicação IDEMPOTENTE de 1 commit a 1 meta. @@unique([commitId, goalId]) impede double-count
+/// em re-sync. Guarda o peso aplicado e o método (auditoria).
+model CommitGoalLink {
+  id           String   @id @default(uuid()) @db.Uuid
+  commitId     String   @map("commit_id") @db.Uuid
+  commit       Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  goalId       String   @map("goal_id") @db.Uuid
+  goal         Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  weight       Float
+  method       String                                        // llm | keyword | branch | manual
+  appliedValue Float?   @map("applied_value")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([commitId, goalId])
+  @@index([goalId])
+  @@map("commit_goal_links")
+}
+
+/// Sequência por projeto p/ o short code (M-N), via UPDATE ... RETURNING transacional.
+model GoalCodeCounter {
+  projectId String  @id @map("project_id") @db.Uuid
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  next      Int     @default(1)
+
+  @@map("goal_code_counters")
 }

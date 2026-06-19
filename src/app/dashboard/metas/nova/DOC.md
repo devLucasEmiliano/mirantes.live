@@ -7,13 +7,13 @@ Rota autenticada `/dashboard/metas/nova` — formulário de criação de meta.
 Página única que monta o cabeçalho e o formulário.
 
 ## Arquivos
-- **`page.tsx`** — `NovaMetaPage` (Server Component). Define `metadata.title`
-  ("Nova Meta — Mirantes.Live"), renderiza o `AppHeader` (breadcrumb
-  "Dashboard / Metas / Nova Meta") e o `@/components/metas/goal-form` (`GoalForm`, cliente).
-  O `GoalForm` é **mock**: o submit apenas volta para `/dashboard/metas` — ver
-  `src/components/metas/DOC.md`.
+- **`page.tsx`** — `NovaMetaPage` (Server Component, async, spec 013). `requireUser` →
+  `scopeForUser` → `resolveSelectedProject` → `listGoals` (achatadas em opções de meta-pai). Passa
+  `projectId` (do projeto selecionado) e `parents` ao `@/components/metas/goal-form` (`GoalForm`,
+  cliente), que faz `POST /api/goals` real — ver `src/components/metas/DOC.md`.
 
 ## O que NÃO vai aqui
-- **Sem persistência** — não há `POST` de meta; a criação real (validação zod, transação,
-  evento, Pub/Sub) pertence à spec de CRUD de metas.
-- **Sem acesso a banco/segredos na página.**
+- **Sem `POST` direto na página** — a criação é feita pelo `GoalForm` (cliente) na API
+  `/api/goals`; a página só carrega o contexto (projeto + metas-pai).
+- **Sem acesso a banco/segredos no cliente** — o carregamento de metas-pai é no Server Component
+  (via `goals/service`); o form só recebe os dados prontos.
