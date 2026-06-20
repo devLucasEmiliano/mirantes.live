@@ -424,7 +424,7 @@ testes. Idempotente, por projeto:
 
 ---
 
-## 13. Servidor MCP (spec 013)
+## 13. Servidor MCP (spec 013 + 015)
 
 Processo **à parte** (`bun run mcp` → `src/lib/mcp/entry.ts`), transporte **stdio**, que expõe as
 Metas a ferramentas externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/goals/service`** do REST.
@@ -433,11 +433,21 @@ Metas a ferramentas externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/go
   **Fail-closed**: sem token configurado, o `entry.ts` recusa iniciar (exit 1).
 - **Transporte:** `StdioServerTransport` (`@modelcontextprotocol/sdk`). stdout é do protocolo; **logs
   vão p/ stderr**. Saída limpa em SIGINT/SIGTERM.
-- **Tools:** `metas_list`, `metas_create`, `metas_update`, `metas_archive`, `metas_link_branch`,
-  `metas_link_commit` (este resolve `commitSha`→`commitId` no projeto da meta). Cada uma delega ao
-  handler em `mcp/tools.ts` → service; erro do service vira erro de tool.
-- **Reuso:** nenhuma lógica de metas mora no MCP — é só um adaptador (single source of truth no service).
-- **Fora de escopo (futuro):** transporte HTTP/SSE remoto e tokens por-usuário; aqui só stdio + token
-  de serviço.
+- **Projeto atual (spec 015):** as tools operam no projeto inferido do `git remote origin` do `cwd`
+  (o `.mcp.json` sobe o MCP na raiz do repo) — em `mirantes.live`, `metas_list()`/`metas_create({…})`
+  funcionam **sem UUID**. Override por `project` (string `owner/repo`|`repo`|`name`, case-insensitive)
+  ou `projectId` UUID. Resolução em `mcp/project-context.ts` (`parseGitRemote` puro + `detectCurrentRepo`
+  via git + `resolveProjectId` → `findProjectByRef`); `ambiguous`/`not_found` em override → erro legível.
+- **Ref de meta (spec 015):** além de `goalId` UUID, as tools aceitam `shortCode` (`M-1`) resolvido no
+  projeto atual via `goals/service.findGoalIdByShortCode`.
+- **Tools (7):** `metas_list`, `metas_create`, `metas_update`, `metas_archive`, `metas_link_branch`,
+  `metas_link_commit` (resolve `commitSha`→`commitId` no projeto da meta) e **`metas_projects`**
+  (descoberta: lista `{ id, name, owner, repo }` do escopo). Cada uma delega ao handler em
+  `mcp/tools.ts` → service; erro do service vira erro de tool. `projectId`/`goalId` crus seguem aceitos
+  (retrocompatível com a 013).
+- **Reuso:** nenhuma lógica de metas mora no MCP — é só um adaptador (single source of truth no service);
+  a resolução de projeto por ref vive no domínio (`projects/ref.ts` + `findProjectByRef`).
+- **Fora de escopo (futuro):** transporte HTTP/SSE remoto e tokens por-usuário; `MCP_DEFAULT_PROJECT`
+  por env; URL completa/múltiplos remotes (só `origin`); aqui só stdio + token de serviço.
 
 ---

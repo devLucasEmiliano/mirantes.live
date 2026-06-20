@@ -7,6 +7,7 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { isValidRepoSlug } from "./github/map";
+import { type MatchProjectResult, matchProjectRef } from "./projects/ref";
 
 // Serviço de Projetos: CRUD + leituras (estatística semanal e último commit) p/ a Visão
 // Geral. Tudo ESCOPADO por papel (spec 009): admin enxerga tudo; client só os seus.
@@ -110,6 +111,19 @@ export async function listProjects(
     orderBy: { createdAt: "asc" },
   });
   return { projects };
+}
+
+/**
+ * Resolve uma referência humana (`owner/repo`, `repo` ou `name`) → projeto do escopo (spec
+ * 015). Carrega `listProjects(scope)` e delega ao puro `matchProjectRef`. Usado pelo MCP p/
+ * operar no "projeto atual" sem exigir UUID.
+ */
+export async function findProjectByRef(
+  scope: Scope,
+  ref: string,
+): Promise<MatchProjectResult<Project>> {
+  const { projects } = await listProjects(scope);
+  return matchProjectRef(projects, ref);
 }
 
 /** Carrega 1 projeto do escopo + atividade. Alheio/inexistente → not_found. */

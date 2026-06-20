@@ -11,9 +11,9 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - `crypto/` — cifra simétrica em repouso (AES-256-GCM) do token OAuth do GitHub. Ver `crypto/DOC.md`.
 - `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - `events/` — eventos da Timeline (mapeadores puros commit/run, formatação de datas, backfill). Ver `events/DOC.md`.
-- `projects/` — seleção de projeto do header (função pura + resolvedor de cookie + Server Action). Ver `projects/DOC.md`.
+- `projects/` — seleção de projeto do header + `ref.ts` (match puro de referência humana → projeto, spec 015). Ver `projects/DOC.md`.
 - `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta (LLM plugável + fallback determinístico). Único portão Postgres em `goals/service.ts`. Ver `goals/DOC.md`.
-- `mcp/` — servidor **MCP** (stdio) de Metas (spec 013): expõe o service a ferramentas externas (Claude Code). Ver `mcp/DOC.md`.
+- `mcp/` — servidor **MCP** (stdio) de Metas (spec 013/015): expõe o service a ferramentas externas (Claude Code), operando no "projeto atual" (git remote) por ref/short code. Ver `mcp/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
 ## Arquivos
@@ -42,9 +42,11 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   `Scope` e filtram por dono (admin sem filtro). `weeklyCommitStats`/`latestCommit` ganharam
   um `projectId?` opcional (spec 012) p/ estreitar ao **projeto selecionado** no header;
   `latestCommit` segue exportado (testes/back-compat), mas **não é mais renderizado** (o card
-  "último commit" saiu do dashboard). Retornos discriminados `ok`. Valida o slug (de
-  `github/map`) antes de gravar; colisão `(userId,owner,repo)` (P2002) → `already_exists` (o
-  mesmo repo coexiste p/ donos diferentes). Única porta ao Postgres no domínio de projetos.
+  "último commit" saiu do dashboard). `findProjectByRef(scope, ref)` (spec 015) carrega
+  `listProjects` e delega ao puro `matchProjectRef` (`projects/ref.ts`) p/ casar `owner/repo`|
+  `repo`|`name` → projeto (usado pelo MCP "projeto atual"). Retornos discriminados `ok`. Valida o
+  slug (de `github/map`) antes de gravar; colisão `(userId,owner,repo)` (P2002) → `already_exists`
+  (o mesmo repo coexiste p/ donos diferentes). Única porta ao Postgres no domínio de projetos.
 - **`events.ts`** — leitura da **Timeline** unificada (spec 012). `listEvents(scope, {projectId?,
   cursor?, limit?})`: `where` por escopo (cliente → só `visibleToClient` E projeto próprio ou
   global; admin → tudo), filtro por `projectId`, `orderBy id desc`, cursor `id < cursor`; busca

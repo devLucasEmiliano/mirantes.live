@@ -7,10 +7,16 @@ distinta de `src/lib/projects.ts` (o **arquivo** irmão), que é o serviço CRUD
 Projetos — esta pasta cuida só de "qual projeto está em foco no header".
 
 ## Estrutura
-Arquivos avulsos. `select.ts` tem a função pura (unit) + o resolvedor de servidor; `actions.ts`
-é um arquivo `"use server"` dedicado (Server Action chamada pelo switcher client).
+Arquivos avulsos. `select.ts` tem a função pura (unit) + o resolvedor de servidor; `ref.ts` é a
+função pura que casa uma referência humana → projeto; `actions.ts` é um arquivo `"use server"`
+dedicado (Server Action chamada pelo switcher client).
 
 ## Arquivos
+- **`ref.ts`** (spec 015) — `matchProjectRef(projects, ref)` **puro/unit-testável**: casa uma
+  referência humana por PRECEDÊNCIA (case-insensitive + trim) `owner/repo` → `repo` → `name`. No 1º
+  nível com match: 1 → `{ ok, project }`; >1 → `{ ok:false, error:"ambiguous", matches }`; nenhum em
+  nível algum → `{ ok:false, error:"not_found" }`. Genérico sobre `ProjectRefLike` ({name,owner,repo}).
+  Sem I/O — a versão que carrega os projetos do escopo é `findProjectByRef` em `../projects.ts`.
 - **`select.ts`**
   - `pickSelectedProject(projects, cookieVal)` — **puro/unit-testável**: devolve o projeto cujo
     `id` casa o cookie; cookie ausente/alheio/inexistente → **fallback = 1º da lista** (o mais

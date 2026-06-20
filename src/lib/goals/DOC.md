@@ -26,8 +26,9 @@ fala com o LLM externo via `fetch` injetável (nunca lança).
   padrão `events/emit.ts`.
 - **`service.ts`** (I/O) — **ÚNICO portão Postgres** das metas: `listGoals` (árvore derivada do
   escopo), `createGoal`/`updateGoal`/`archiveGoal` (soft delete em cascata), `linkBranch`/
-  `unlinkBranch`, `linkCommit` (manual, idempotente), `goalOwnerWhere`, short code transacional.
-  Retornos discriminados `{ ok } | { ok:false; error }` (padrão de `projects.ts`).
+  `unlinkBranch`, `linkCommit` (manual, idempotente), `goalOwnerWhere`, short code transacional,
+  `findGoalIdByShortCode(scope, projectId, shortCode)` (spec 015: resolve `M-1`→`goalId` escopado,
+  usado pelo MCP). Retornos discriminados `{ ok } | { ok:false; error }` (padrão de `projects.ts`).
 - **`attribution.ts`** (I/O) — `attributeCommits(projectId, newCommits, opts)`: roda no `syncProject`
   p/ cada commit NOVO (LLM decide → fallback determinístico), aplica peso idempotente
   (`commit_goal_links` unique), devolve eventos `goal.*`.

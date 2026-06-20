@@ -115,6 +115,22 @@ async function nextShortCode(
   return `M-${rows[0].next - 1}`;
 }
 
+/**
+ * Resolve `(projectId, shortCode)` → `goalId` dentro do escopo (spec 015). Mesmo portão
+ * Postgres das metas; usado pelo MCP p/ referenciar metas por `M-1` no projeto atual.
+ */
+export async function findGoalIdByShortCode(
+  scope: Scope,
+  projectId: string,
+  shortCode: string,
+): Promise<string | null> {
+  const goal = await db.goal.findFirst({
+    where: { projectId, shortCode, deletedAt: null, ...goalOwnerWhere(scope) },
+    select: { id: true },
+  });
+  return goal?.id ?? null;
+}
+
 /** Árvore derivada (top-level) do escopo, opcionalmente filtrada por projeto. */
 export async function listGoals(
   scope: Scope,

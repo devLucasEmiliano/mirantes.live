@@ -1,6 +1,10 @@
-// Servidor MCP de Metas (spec 013): monta um `McpServer` e registra as 6 tools (zod) ligando
+// Servidor MCP de Metas (spec 013/015): monta um `McpServer` e registra as tools (zod) ligando
 // ao escopo resolvido pelo token. Cada tool delega ao handler em `tools.ts` (reuso do service)
 // e devolve o JSON do resultado como texto. Transporte (stdio) e auth ficam no `entry.ts`.
+//
+// Spec 015: o projeto pode vir por `project` (owner/repo|repo|name) ou ser inferido do `git
+// remote origin` do cwd (o "projeto atual"); a meta pode vir por `shortCode` (M-1) além de
+// `goalId`. `projectId`/`goalId` UUID seguem aceitos (retrocompatível).
 //
 // Nota de compat: o SDK 1.29 traz uma cópia ANINHADA de zod (3.25, v4-core) só para os tipos de
 // `registerTool`; o app usa zod 4.4. Os schemas funcionam em runtime (mesmo v4-core), mas as
@@ -15,10 +19,32 @@ import {
   metasLinkBranch,
   metasLinkCommit,
   metasList,
+  metasProjects,
   metasUpdate,
 } from "./tools";
 
 const STATUS = z.enum(["todo", "in_progress", "done"]);
+
+// Como apontar o projeto: `project` humano (owner/repo|repo|name) OU `projectId` UUID; ausentes
+// → "projeto atual" pelo git remote. Reutilizado em todas as tools que precisam de projeto.
+const PROJECT_REF = {
+  project: z
+    .string()
+    .optional()
+    .describe("Projeto por owner/repo, repo ou nome (case-insensitive)."),
+  projectId: z.string().uuid().optional(),
+};
+
+// Como apontar a meta: `goalId` UUID OU `shortCode` (M-1) resolvido no projeto. Inclui PROJECT_REF
+// porque o short code precisa do projeto p/ ser resolvido.
+const GOAL_REF = {
+  ...PROJECT_REF,
+  goalId: z.string().uuid().optional(),
+  shortCode: z
+    .string()
+    .optional()
+    .describe("Short code da meta no projeto, ex. M-1."),
+};
 
 type ToolResult = { content: { type: "text"; text: string }[] };
 type RegisterFn = (
@@ -46,11 +72,16 @@ export function createMetasMcpServer(scope: Scope): McpServer {
     {
       title: "Listar metas",
       description:
-        "Lista a árvore de metas do escopo (opcionalmente filtrada por projeto).",
-      inputSchema: { projectId: z.string().uuid().optional() },
+        "Lista a árvore de metas do projeto atual (git remote) ou de `project`/`projectId`. Sem projeto resolvível, lista todo o escopo.",
+      inputSchema: { ...PROJECT_REF },
     },
     async (args) =>
-      asText(await metasList(scope, args as { projectId?: string })),
+      asText(
+        await metasList(
+          scope,
+          args as { project?: string; projectId?: string },
+        ),
+      ),
   );
 
   register(
@@ -58,9 +89,9 @@ export function createMetasMcpServer(scope: Scope): McpServer {
     {
       title: "Criar meta",
       description:
-        "Cria uma meta. Com targetValue vira X→Y medível; sem, é manual (0–100).",
+        "Cria uma meta no projeto atual (git remote) ou em `project`/`projectId`. Com targetValue vira X→Y medível; sem, é manual (0–100).",
       inputSchema: {
-        projectId: z.string().uuid(),
+        ...PROJECT_REF,
         title: z.string().min(1),
         dueDate: z.string(),
         description: z.string().optional(),
@@ -85,9 +116,9 @@ export function createMetasMcpServer(scope: Scope): McpServer {
     {
       title: "Atualizar meta",
       description:
-        "Edita campos de uma meta-folha (pai é derivado, read-only).",
+        "Edita campos de uma meta-folha (pai é derivado, read-only). Aponte por `goalId` ou `shortCode` (+ projeto).",
       inputSchema: {
-        goalId: z.string().uuid(),
+        ...GOAL_REF,
         title: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
         status: STATUS.optional(),
@@ -111,11 +142,17 @@ export function createMetasMcpServer(scope: Scope): McpServer {
     "metas_archive",
     {
       title: "Arquivar meta",
-      description: "Soft delete em cascata da meta e de seus descendentes.",
-      inputSchema: { goalId: z.string().uuid() },
+      description:
+        "Soft delete em cascata da meta e de seus descendentes. Aponte por `goalId` ou `shortCode` (+ projeto).",
+      inputSchema: { ...GOAL_REF },
     },
     async (args) =>
-      asText(await metasArchive(scope, args as unknown as { goalId: string })),
+      asText(
+        await metasArchive(
+          scope,
+          args as unknown as Parameters<typeof metasArchive>[1],
+        ),
+      ),
   );
 
   register(
@@ -123,9 +160,9 @@ export function createMetasMcpServer(scope: Scope): McpServer {
     {
       title: "Vincular branch à meta",
       description:
-        "Liga uma branch à meta (base da atribuição determinística por branch/merge).",
+        "Liga uma branch à meta (base da atribuição determinística por branch/merge). Aponte por `goalId` ou `shortCode`.",
       inputSchema: {
-        goalId: z.string().uuid(),
+        ...GOAL_REF,
         branchName: z.string().min(1),
       },
     },
@@ -133,7 +170,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
       asText(
         await metasLinkBranch(
           scope,
-          args as unknown as { goalId: string; branchName: string },
+          args as unknown as Parameters<typeof metasLinkBranch>[1],
         ),
       ),
   );
@@ -143,9 +180,9 @@ export function createMetasMcpServer(scope: Scope): McpServer {
     {
       title: "Vincular commit à meta",
       description:
-        "Liga um commit (por sha, no projeto da meta) e aplica o peso UMA vez (idempotente).",
+        "Liga um commit (por sha, no projeto da meta) e aplica o peso UMA vez (idempotente). Aponte a meta por `goalId` ou `shortCode`.",
       inputSchema: {
-        goalId: z.string().uuid(),
+        ...GOAL_REF,
         commitSha: z.string().min(1),
       },
     },
@@ -153,9 +190,20 @@ export function createMetasMcpServer(scope: Scope): McpServer {
       asText(
         await metasLinkCommit(
           scope,
-          args as unknown as { goalId: string; commitSha: string },
+          args as unknown as Parameters<typeof metasLinkCommit>[1],
         ),
       ),
+  );
+
+  register(
+    "metas_projects",
+    {
+      title: "Listar projetos",
+      description:
+        "Lista os projetos do escopo ({ id, name, owner, repo }) p/ escolher `project` ou conferir o projeto atual.",
+      inputSchema: {},
+    },
+    async () => asText(await metasProjects(scope)),
   );
 
   return server;

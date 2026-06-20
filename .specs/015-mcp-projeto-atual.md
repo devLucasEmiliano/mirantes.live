@@ -1,7 +1,7 @@
 ---
 id: 015
 title: MCP de Metas opera no "projeto atual" (por repo/nome, auto via git remote) + ref por short code
-status: draft        # draft | approved | tests-red | done
+status: done         # draft | approved | tests-red | done
 test_levels: [unit, integration]
 created: 2026-06-19
 ---
@@ -293,12 +293,28 @@ it("goalId direto ainda funciona (compat)", async () => {
 
 ## Critérios de pronto
 
-- [ ] Unit + integração verdes (vistos vermelhos antes); ordem §5.5.
-- [ ] `projectId`/`goalId` antigos continuam funcionando (testes originais passam).
-- [ ] `metas_list()` sem args usa o projeto do git; override `project` e `shortCode` funcionam.
-- [ ] `metas_projects` registrada e respondendo.
-- [ ] Biome + `tsc --noEmit` limpos; `DOC.md` atualizados; SPEC §13 atualizada.
-- [ ] Spec marcada `done` (atualizada se divergiu).
+- [x] Unit + integração verdes (vistos vermelhos antes: 16 fail → 22 pass; suíte cheia 199 pass);
+      ordem §5.5.
+- [x] `projectId`/`goalId` antigos continuam funcionando (testes originais + "goalId direto" passam).
+- [x] `metas_list()` sem args usa o projeto do git; override `project` e `shortCode` funcionam.
+- [x] `metas_projects` registrada e respondendo.
+- [x] `tsc --noEmit` limpo; **Biome limpo nos 9 arquivos tocados** (os 47 erros restantes são
+      pré-existentes em arquivos não tocados por esta spec — fora de escopo); `DOC.md` atualizados;
+      SPEC §13 atualizada.
+- [x] Spec marcada `done` (ver Divergências abaixo).
+
+## Divergências (registro vivo, §3.2)
+
+Pequenos ajustes de contrato em relação ao plano, sem mudar o comportamento testado:
+
+1. **`projectId` cru mantido em todas as tools** (não só `project`/`shortCode`). O contrato §"Tools"
+   listava `metasList(scope, { project? })`, mas os testes originais da 013 passam `{ projectId }`;
+   manter `projectId?` ao lado de `project?` é o que garante a retrocompat exigida em §"Critérios".
+2. **`resolveProjectId` — override vs. git.** O plano dizia "ambiguous/not_found → throw; sem projeto
+   resolvível → null". A impl distingue: **override** (`project`) `not_found`/`ambiguous` → **throw**
+   (o usuário pediu projeto explícito); **git auto** `not_found` → **null** (cai p/ todo o escopo, p/
+   `metas_list()` não quebrar em repo não cadastrado), `ambiguous` → throw. Coerente com o teste
+   "ref inexistente → erro" (override) e com a ergonomia de `metas_list()`.
 
 ## Fora de escopo
 
