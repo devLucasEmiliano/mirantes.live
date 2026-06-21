@@ -18,6 +18,9 @@ que precisam de runtime Node (cookies, banco, Redis) — fora do render de compo
   `goals/DOC.md`.
 - `mcp-tokens/` — Tokens pessoais do MCP (spec 019): coleção (`GET`/`POST`) + item `[id]`
   (`DELETE` revoga). Sempre do `current.id`; o texto puro só na criação. Ver `mcp-tokens/DOC.md`.
+- `mcp/` — Servidor MCP de Metas via **HTTP** (spec 020): `POST`/`GET`/`DELETE /api/mcp`,
+  autenticado por **Bearer** (token pessoal → client; env → admin; ausente/inválido → 401). Serve as
+  7 tools sem amarra ao git (substitui o stdio). Ver `mcp/DOC.md`.
 - (demais grupos — monitoring, stream… — entram nas suas specs.)
 
 ## Arquivos

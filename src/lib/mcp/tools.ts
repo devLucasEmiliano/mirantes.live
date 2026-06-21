@@ -23,6 +23,10 @@ import {
 import { listProjects, type Scope } from "@/lib/projects";
 import { resolveProjectId } from "./project-context";
 
+// Opções de resolução repassadas ao `resolveProjectId` (spec 020). Hoje só `detectRepo` (liga/desliga
+// o git remote): o transporte HTTP passa `{ detectRepo: false }`; o stdio não passa nada (default).
+type ResolveOpts = { detectRepo?: boolean };
+
 export interface MetasCreateInput {
   project?: string;
   projectId?: string;
@@ -62,9 +66,10 @@ export interface MetasUpdateInput extends GoalRef {
 async function requireProjectId(
   scope: Scope,
   ref: { project?: string; projectId?: string },
+  opts?: ResolveOpts,
 ): Promise<string> {
   if (ref.projectId) return ref.projectId;
-  const resolved = await resolveProjectId(scope, ref.project);
+  const resolved = await resolveProjectId(scope, ref.project, opts);
   if (!resolved) {
     throw new Error(
       "Não foi possível resolver o projeto. Passe `project` (owner/repo|repo|name) ou rode o MCP dentro do repositório.",
@@ -77,10 +82,14 @@ async function requireProjectId(
  * `goalId` alvo: id cru se veio; senão `shortCode` resolvido no projeto (project/git). Lança se
  * faltar referência ou a meta não existir no escopo.
  */
-async function resolveGoalId(scope: Scope, ref: GoalRef): Promise<string> {
+async function resolveGoalId(
+  scope: Scope,
+  ref: GoalRef,
+  opts?: ResolveOpts,
+): Promise<string> {
   if (ref.goalId) return ref.goalId;
   if (ref.shortCode) {
-    const projectId = await requireProjectId(scope, ref);
+    const projectId = await requireProjectId(scope, ref, opts);
     const id = await findGoalIdByShortCode(scope, projectId, ref.shortCode);
     if (!id) {
       throw new Error(
@@ -95,12 +104,13 @@ async function resolveGoalId(scope: Scope, ref: GoalRef): Promise<string> {
 export async function metasList(
   scope: Scope,
   input: { project?: string; projectId?: string },
+  opts?: ResolveOpts,
 ): Promise<GoalDTO[]> {
   // `projectId` cru tem precedência; senão resolve `project`/git. Sem projeto resolvível
   // (sem ref e fora de um repo cadastrado) → lista todo o escopo.
   const projectId =
     input.projectId ??
-    (await resolveProjectId(scope, input.project)) ??
+    (await resolveProjectId(scope, input.project, opts)) ??
     undefined;
   const goals = await listGoals(scope, projectId);
   return goals.map(toGoalDTO);
@@ -109,8 +119,9 @@ export async function metasList(
 export async function metasCreate(
   scope: Scope,
   input: MetasCreateInput,
+  opts?: ResolveOpts,
 ): Promise<Goal> {
-  const projectId = await requireProjectId(scope, input);
+  const projectId = await requireProjectId(scope, input, opts);
   const { project: _project, projectId: _projectId, ...rest } = input;
   const result = await createGoal(scope, { ...rest, projectId });
   if (!result.ok) throw new Error(`metasCreate falhou: ${result.error}`);
@@ -120,8 +131,9 @@ export async function metasCreate(
 export async function metasUpdate(
   scope: Scope,
   input: MetasUpdateInput,
+  opts?: ResolveOpts,
 ): Promise<Goal> {
-  const goalId = await resolveGoalId(scope, input);
+  const goalId = await resolveGoalId(scope, input, opts);
   const {
     goalId: _goalId,
     project: _project,
@@ -137,8 +149,9 @@ export async function metasUpdate(
 export async function metasArchive(
   scope: Scope,
   input: GoalRef,
+  opts?: ResolveOpts,
 ): Promise<{ ok: true }> {
-  const goalId = await resolveGoalId(scope, input);
+  const goalId = await resolveGoalId(scope, input, opts);
   const result = await archiveGoal(scope, goalId);
   if (!result.ok) throw new Error(`metasArchive falhou: ${result.error}`);
   return { ok: true };
@@ -147,8 +160,9 @@ export async function metasArchive(
 export async function metasLinkBranch(
   scope: Scope,
   input: GoalRef & { branchName: string },
+  opts?: ResolveOpts,
 ): Promise<{ ok: true }> {
-  const goalId = await resolveGoalId(scope, input);
+  const goalId = await resolveGoalId(scope, input, opts);
   const result = await linkBranch(scope, goalId, input.branchName);
   if (!result.ok) throw new Error(`metasLinkBranch falhou: ${result.error}`);
   return { ok: true };
@@ -157,8 +171,9 @@ export async function metasLinkBranch(
 export async function metasLinkCommit(
   scope: Scope,
   input: GoalRef & { commitSha: string },
+  opts?: ResolveOpts,
 ): Promise<{ ok: true }> {
-  const goalId = await resolveGoalId(scope, input);
+  const goalId = await resolveGoalId(scope, input, opts);
   // Resolve o sha → commitId DENTRO do projeto da meta (escopado), depois liga idempotente.
   const goal = await db.goal.findFirst({
     where: { id: goalId, deletedAt: null, ...goalOwnerWhere(scope) },

@@ -21,13 +21,15 @@ Toda implementação **deve** usar exclusivamente:
 - **Vitest** — testes unitários e de integração.
 - **Playwright** — testes end-to-end.
 - **`@modelcontextprotocol/sdk`** (servidor MCP de Metas — spec 013): já estava no `bun.lock`
-  (transitivo via `shadcn`), **promovido a `dependencies`** (aprovado no chat). Script `mcp`
-  (`bun run src/lib/mcp/entry.ts`, stdio). Convive com **zod 4** do app via ponte de tipos em
-  `mcp/server.ts` (o SDK traz zod 3.25/v4-core só p/ seus tipos; runtime ok). **Auth multi-usuário
-  (spec 019):** além do `MCP_SERVICE_TOKEN` (env → escopo admin), cada usuário gera **tokens
-  pessoais** (tabela `mcp_tokens`, geridos na tela de Integrações) que resolvem para
-  `{ role: "client", userId }` — só o `sha256` do token vive no banco. Transporte HTTP em `/api/mcp`
-  fica para a spec 020.
+  (transitivo via `shadcn`), **promovido a `dependencies`** (aprovado no chat). Convive com **zod 4**
+  do app via ponte de tipos em `mcp/server.ts` (o SDK traz zod 3.25/v4-core só p/ seus tipos; runtime
+  ok). **Auth multi-usuário (spec 019):** além do `MCP_SERVICE_TOKEN` (env → escopo admin), cada
+  usuário gera **tokens pessoais** (tabela `mcp_tokens`, geridos na tela de Integrações) que resolvem
+  para `{ role: "client", userId }` — só o `sha256` do token vive no banco. **Transporte HTTP
+  (spec 020):** route `POST/GET/DELETE /api/mcp` (`WebStandardStreamableHTTPServerTransport`
+  stateless, Bearer→escopo, `detectRepo:false` = sem git do servidor); cliente conecta com
+  `claude mcp add --transport http …`. O **stdio foi removido** (`entry.ts`/`.mcp.json`/script `mcp`
+  já não existem); o SDK é `serverExternalPackages` no `next.config`.
 - **Atribuição commit→meta (spec 013; LLM removido na spec 016):** **100% determinística** —
   keyword (`M-12`/`meta #12`) → branch vinculada → vínculo manual (`src/lib/goals/resolver.ts`).
   **Sem runtime/SDK/env de LLM.** O progresso de meta muda só por: sync determinístico do GitHub,

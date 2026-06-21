@@ -1,7 +1,7 @@
 ---
 id: 020
 title: MCP via HTTP (global, por token pessoal, sem .env no cliente)
-status: approved        # draft | approved | tests-red | done
+status: done        # draft | approved | tests-red | done
 test_levels: [integration, e2e]
 created: 2026-06-21
 ---
@@ -161,15 +161,30 @@ retorna os projetos do dono.)
 
 ## Critérios de pronto
 
-- [ ] `POST/GET/DELETE /api/mcp` autentica por Bearer (token pessoal → client; env admin → admin;
+- [x] `POST/GET/DELETE /api/mcp` autentica por Bearer (token pessoal → client; env admin → admin;
       ausente/inválido → 401) e serve as 7 tools **sem amarra ao git** (`detectRepo:false`).
-- [ ] `claude mcp add --transport http …` conecta e opera nos projetos do dono do token, sem `.env`.
-- [ ] stdio removido (`entry.ts`, `.mcp.json`, script `mcp`, envs `MCP_TRANSPORT`/`MCP_HTTP_PORT`,
+- [x] `claude mcp add --transport http …` conecta e opera nos projetos do dono do token, sem `.env`
+      (e2e: `tools/call metas_projects` traz `cliente-repo`).
+- [x] stdio removido (`entry.ts`, `.mcp.json`, script `mcp`, envs `MCP_TRANSPORT`/`MCP_HTTP_PORT`,
       entry em `.claude/settings.local.json`).
-- [ ] Card mostra o comando copiável (token real 1× após gerar; senão `<SEU_TOKEN>`).
-- [ ] Testes verdes (vistos vermelhos antes); `bun run typecheck` + `biome check` limpos nos arquivos
-      da task.
-- [ ] DOC.md/SPEC/CLAUDE/.env.example atualizados; spec marcada `done` (atualizada se divergiu).
+- [x] Card mostra o comando copiável (token real 1× após gerar; senão `<SEU_TOKEN>`).
+- [x] Testes verdes (vistos vermelhos antes — red de import); `bun run typecheck` + `biome check`
+      limpos nos arquivos da task; suíte completa 225/225.
+- [x] DOC.md/SPEC/CLAUDE/.env.example atualizados; spec marcada `done` (atualizada se divergiu).
+
+## Divergências / decisões da implementação (registro vivo)
+
+- **`next.config.ts`** — `@modelcontextprotocol/sdk` adicionado a `serverExternalPackages` (1ª vez
+  que o SDK entra no build do Next; traz cópia aninhada de zod + módulos `node:`). Não estava no plano.
+- **Integração** — além dos 3 casos do plano, foi adicionado um 4º (`tools/call metas_list` via HTTP)
+  que usa os imports `metasCreate`/`future` do plano: **confirmado** que em stateless um `tools/call`
+  num único POST funciona **sem** `initialize` prévio (o SDK não exige init no nível de protocolo;
+  `validateSession` é pulado em stateless). Red de todos = falha de import do route inexistente.
+- **Card** — comando renderizado em **uma linha** (não a forma multi-linha com `\` do "Resultado
+  final") p/ copiar cross-platform (PowerShell não usa `\`). Testids `mcp-setup-command` +
+  `mcp-setup-copy`; helper `copy(text, which)` serve token e comando.
+- **Route** — 3 exports nomeados (`POST`/`GET`/`DELETE`) delegando a um `handle` único; 401 devolve
+  erro JSON-RPC (`{ jsonrpc, id: null, error }`).
 
 ## Fora de escopo
 

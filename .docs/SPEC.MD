@@ -439,33 +439,40 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 | Rate limit login | 5 / 15min / IP | global |
 | Heartbeat SSE | ~20s | global |
 | `GOAL_WEIGHT_COMMIT` / `GOAL_WEIGHT_MERGE` | 1 / 5 | global — peso da atribuição (spec 013) |
-| `MCP_SERVICE_TOKEN` | — (obrigatório p/ subir o MCP stdio) | global — fail-closed; env→admin, ou token pessoal do usuário p/ stdio escopado (spec 013/019) |
+| `MCP_SERVICE_TOKEN` | — (opcional) | global — Bearer no route `/api/mcp`: env→admin (compat); cada usuário usa o seu token pessoal (spec 019/020) |
 
 ---
 
-## 13. Servidor MCP (spec 013 + 015)
+## 13. Servidor MCP (spec 013 + 015 + 020)
 
-Processo **à parte** (`bun run mcp` → `src/lib/mcp/entry.ts`), transporte **stdio**, que expõe as
-Metas a ferramentas externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/goals/service`** do REST.
+**Route handler HTTP** (`POST/GET/DELETE /api/mcp`, spec 020) que expõe as Metas a ferramentas
+externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/goals/service`** do REST. O cliente conecta
+com um comando — `claude mcp add --transport http mirantes-metas <APP_BASE_URL>/api/mcp --header
+"Authorization: Bearer mir_…"` — **sem `.env` nem repo local**. (O transporte **stdio** e o
+`entry.ts`/`.mcp.json`/script `mcp` foram **removidos** na spec 020.)
 
-- **Auth (spec 013 → 019):** `resolveScopeFromToken(token)` é **assíncrono** e resolve o escopo na
-  ordem fail-closed: sem token → recusa; `=== env.MCP_SERVICE_TOKEN` (se configurado) → escopo
-  **admin** (compat operador/local); senão `sha256(token)` casa um **token pessoal ativo** (tabela
-  `mcp_tokens`, spec 019) → escopo **`{ client, userId }`** e carimba `last_used_at`;
-  desconhecido/revogado → recusa. O `entry.ts` mantém fail-closed (escopo `null` → exit 1); o usuário
-  pode pôr o **seu** token pessoal no `MCP_SERVICE_TOKEN` p/ rodar o stdio local escopado a si.
+- **Auth (spec 013 → 019 → 020):** o route lê `Authorization: Bearer <token>` →
+  `resolveScopeFromToken(token)` (**assíncrono**), ordem fail-closed: sem token → **401**;
+  `=== env.MCP_SERVICE_TOKEN` (se configurado) → escopo **admin** (compat operador/local); senão
+  `sha256(token)` casa um **token pessoal ativo** (tabela `mcp_tokens`, spec 019) → escopo
+  **`{ client, userId }`** e carimba `last_used_at`; desconhecido/revogado → **401**.
 - **Tokens por usuário (spec 019):** tabela `mcp_tokens` (`user_id`, `name`, `token_hash` **@unique**
   = sha256(token) hex — só o hash em repouso, nunca o texto; `token_prefix` curto p/ exibir;
   `last_used_at`, `revoked_at`). Gestão na tela de **Integrações** (gerar mostra o texto **uma vez**;
   revogar é soft + escopado ao dono). SHA-256 e não argon2: token é alta entropia → KDF lento não
   agrega segurança e impede o lookup O(1) por igualdade.
-- **Transporte:** `StdioServerTransport` (`@modelcontextprotocol/sdk`). stdout é do protocolo; **logs
-  vão p/ stderr**. Saída limpa em SIGINT/SIGTERM.
-- **Projeto atual (spec 015):** as tools operam no projeto inferido do `git remote origin` do `cwd`
-  (o `.mcp.json` sobe o MCP na raiz do repo) — em `mirantes.live`, `metas_list()`/`metas_create({…})`
-  funcionam **sem UUID**. Override por `project` (string `owner/repo`|`repo`|`name`, case-insensitive)
-  ou `projectId` UUID. Resolução em `mcp/project-context.ts` (`parseGitRemote` puro + `detectCurrentRepo`
-  via git + `resolveProjectId` → `findProjectByRef`); `ambiguous`/`not_found` em override → erro legível.
+- **Transporte (spec 020):** `WebStandardStreamableHTTPServerTransport` (`@modelcontextprotocol/sdk`)
+  **stateless** (`sessionIdGenerator: undefined`) + `enableJsonResponse` — **1 `McpServer` + 1
+  transport por requisição**; recebe o `Request` web e devolve `Response` (encaixa no route handler).
+  Em stateless, um `tools/call` num único POST não exige `initialize` prévio. O SDK é `serverExternal`
+  no `next.config` (cópia aninhada de zod + módulos `node:`).
+- **Projeto (spec 015 + 020):** no **HTTP** o git do servidor é **desligado** (`detectRepo: false`) —
+  não infere "projeto atual" (leria o repo do servidor, não o do cliente); as tools operam sobre
+  **todo o escopo** do dono do token, salvo `project` (string `owner/repo`|`repo`|`name`,
+  case-insensitive) ou `projectId` UUID. Resolução em `mcp/project-context.ts` (`parseGitRemote` puro
+  + `detectCurrentRepo` via git + `resolveProjectId(scope, override?, opts?)` → `findProjectByRef`);
+  `ambiguous`/`not_found` em override → erro legível. (`detectCurrentRepo` segue existindo, mas o route
+  passa `detectRepo:false`.)
 - **Ref de meta (spec 015):** além de `goalId` UUID, as tools aceitam `shortCode` (`M-1`) resolvido no
   projeto atual via `goals/service.findGoalIdByShortCode`.
 - **Tools (7):** `metas_list`, `metas_create`, `metas_update`, `metas_archive`, `metas_link_branch`,

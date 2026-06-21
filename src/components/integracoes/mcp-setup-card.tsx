@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CardShell } from "@/components/configuracoes/profile-cards";
 
-// Card "MCP / Claude Code" (spec 019): gere os tokens pessoais que o servidor MCP de Metas
-// resolve p/ o escopo do usuário ({ role: "client", userId }). Fala SÓ com a API via `fetch`
-// (nada de Prisma/segredo aqui); o gate de auth é da página. Lista os tokens ATIVOS (props do
-// Server Component), gera um novo (mostra o texto puro UMA vez, copiável) e revoga. Após cada
-// mutação chama router.refresh().
+// Card "MCP / Claude Code" (spec 019 + 020): gere os tokens pessoais que o servidor MCP de Metas
+// resolve p/ o escopo do usuário ({ role: "client", userId }) e copie o comando de conexão. Fala SÓ
+// com a API via `fetch` (nada de Prisma/segredo aqui); o gate de auth é da página. Lista os tokens
+// ATIVOS (props do Server Component), gera um novo (mostra o texto puro UMA vez, copiável) e revoga.
 //
-// O comando de setup (`claude mcp add … /api/mcp …`) entra na spec 020 (MCP via HTTP); aqui o
-// card só vive p/ gerir os tokens.
+// Spec 020 (MCP via HTTP): mostra o comando `claude mcp add --transport http … /api/mcp` copiável
+// (`mcp-setup-command`). Antes de gerar é um template com `<SEU_TOKEN>`; ao gerar, embute o token
+// puro real (1×). `appBaseUrl` (= env.APP_BASE_URL) monta a URL do route.
 
 export interface McpTokenItem {
   id: string;
@@ -34,14 +34,23 @@ function timeAgo(iso: string): string {
   return `há ${Math.floor(hours / 24)} d`;
 }
 
-export function McpSetupCard({ tokens }: { tokens: McpTokenItem[] }) {
+export function McpSetupCard({
+  tokens,
+  appBaseUrl,
+}: {
+  tokens: McpTokenItem[];
+  appBaseUrl: string;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [plaintext, setPlaintext] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"token" | "command" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  // Comando de conexão (spec 020): token real após gerar, senão o template `<SEU_TOKEN>`.
+  const command = `claude mcp add --transport http mirantes-metas ${appBaseUrl}/api/mcp --header "Authorization: Bearer ${plaintext ?? "<SEU_TOKEN>"}"`;
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -77,11 +86,10 @@ export function McpSetupCard({ tokens }: { tokens: McpTokenItem[] }) {
     }
   }
 
-  async function copyToken() {
-    if (!plaintext) return;
-    await navigator.clipboard?.writeText(plaintext).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  async function copy(text: string, which: "token" | "command") {
+    await navigator.clipboard?.writeText(text).catch(() => {});
+    setCopied(which);
+    setTimeout(() => setCopied(null), 1500);
   }
 
   return (
@@ -100,6 +108,39 @@ export function McpSetupCard({ tokens }: { tokens: McpTokenItem[] }) {
           Tokens pessoais que o servidor MCP de Metas usa para operar apenas nos
           seus projetos. Cada token é exibido uma única vez na geração.
         </p>
+
+        {/* Comando de conexão copiável (spec 020) — embute o token real após gerar. */}
+        <div className="mx-6 mt-4 flex flex-col gap-2 rounded-sm border border-border-subtle bg-surface-elevated p-4">
+          <span className="font-body text-xs font-semibold uppercase tracking-wide text-foreground-muted">
+            Conectar o Claude Code
+          </span>
+          <div className="flex items-start gap-2">
+            <code
+              data-testid="mcp-setup-command"
+              className="min-w-0 flex-1 whitespace-pre-wrap break-all rounded-sm border border-border-subtle bg-surface-primary px-3 py-2 font-mono text-[12px] leading-relaxed text-foreground-primary"
+            >
+              {command}
+            </code>
+            <button
+              type="button"
+              data-testid="mcp-setup-copy"
+              onClick={() => copy(command, "command")}
+              className="flex shrink-0 items-center gap-1.5 rounded-sm border border-border-subtle px-3 py-2 text-[12px] font-medium text-foreground-primary transition-colors hover:bg-surface-elevated"
+            >
+              {copied === "command" ? (
+                <Check className="size-3.5" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+              {copied === "command" ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+          <span className="text-[11px] text-foreground-muted">
+            {plaintext
+              ? "Token embutido acima — copie agora; ele não será exibido de novo."
+              : "Gere um token abaixo para embuti-lo no comando (ou troque <SEU_TOKEN>)."}
+          </span>
+        </div>
 
         {tokens.length === 0 ? (
           <p className="px-6 py-5 text-sm text-foreground-muted">
@@ -167,15 +208,15 @@ export function McpSetupCard({ tokens }: { tokens: McpTokenItem[] }) {
               <button
                 type="button"
                 data-testid="mcp-token-copy"
-                onClick={copyToken}
+                onClick={() => plaintext && copy(plaintext, "token")}
                 className="flex shrink-0 items-center gap-1.5 rounded-sm border border-border-subtle px-3 py-2 text-[12px] font-medium text-foreground-primary transition-colors hover:bg-surface-elevated"
               >
-                {copied ? (
+                {copied === "token" ? (
                   <Check className="size-3.5" />
                 ) : (
                   <Copy className="size-3.5" />
                 )}
-                {copied ? "Copiado" : "Copiar"}
+                {copied === "token" ? "Copiado" : "Copiar"}
               </button>
             </div>
           </div>

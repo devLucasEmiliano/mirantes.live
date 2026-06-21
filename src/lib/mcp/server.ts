@@ -1,6 +1,8 @@
 // Servidor MCP de Metas (spec 013/015): monta um `McpServer` e registra as tools (zod) ligando
 // ao escopo resolvido pelo token. Cada tool delega ao handler em `tools.ts` (reuso do service)
-// e devolve o JSON do resultado como texto. Transporte (stdio) e auth ficam no `entry.ts`.
+// e devolve o JSON do resultado como texto. Transporte e auth ficam no route HTTP `/api/mcp`
+// (spec 020): Bearer → `resolveScopeFromToken` → escopo; `WebStandardStreamableHTTPServerTransport`
+// stateless por requisição. (O stdio/`entry.ts` foi removido na spec 020.)
 //
 // Spec 015: o projeto pode vir por `project` (owner/repo|repo|name) ou ser inferido do `git
 // remote origin` do cwd (o "projeto atual"); a meta pode vir por `shortCode` (M-1) além de
@@ -63,7 +65,12 @@ function asText(value: unknown): ToolResult {
   };
 }
 
-export function createMetasMcpServer(scope: Scope): McpServer {
+// `opts.detectRepo` (spec 020): repassado a cada handler que resolve projeto. O transporte HTTP
+// (`/api/mcp`) passa `{ detectRepo: false }` (sem git do servidor); o stdio não passava nada.
+export function createMetasMcpServer(
+  scope: Scope,
+  opts?: { detectRepo?: boolean },
+): McpServer {
   const server = new McpServer({ name: "mirantes-metas", version: "1.0.0" });
   const register = server.registerTool.bind(server) as unknown as RegisterFn;
 
@@ -80,6 +87,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
         await metasList(
           scope,
           args as { project?: string; projectId?: string },
+          opts,
         ),
       ),
   );
@@ -107,6 +115,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
         await metasCreate(
           scope,
           args as unknown as Parameters<typeof metasCreate>[1],
+          opts,
         ),
       ),
   );
@@ -134,6 +143,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
         await metasUpdate(
           scope,
           args as unknown as Parameters<typeof metasUpdate>[1],
+          opts,
         ),
       ),
   );
@@ -151,6 +161,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
         await metasArchive(
           scope,
           args as unknown as Parameters<typeof metasArchive>[1],
+          opts,
         ),
       ),
   );
@@ -171,6 +182,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
         await metasLinkBranch(
           scope,
           args as unknown as Parameters<typeof metasLinkBranch>[1],
+          opts,
         ),
       ),
   );
@@ -191,6 +203,7 @@ export function createMetasMcpServer(scope: Scope): McpServer {
         await metasLinkCommit(
           scope,
           args as unknown as Parameters<typeof metasLinkCommit>[1],
+          opts,
         ),
       ),
   );

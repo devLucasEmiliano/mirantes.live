@@ -15,9 +15,10 @@ Uma página.
   cada projeto p/ um DTO plano (`ProjectListItem`) com `lastPolledAt` em ISO e `isPublic`
   (spec 016 — home pública `/`; o `ProjectsManager` exibe/edita o toggle "Público"). Monta `conn`
   (`{connected, githubLogin}`) e passa `<GithubConnectionCard connection>` + `<ProjectsManager
-  projects connection>`. **Tokens MCP (spec 019):** carrega `listMcpTokens(user.id)`, filtra os
-  ativos (`revokedAt === null`), mapeia p/ DTO (`McpTokenItem`, datas ISO) e passa a
-  `<McpSetupCard tokens>`. Lê `searchParams.github` (`Promise`) p/ exibir o banner do retorno do
+  projects connection>`. **Tokens MCP (spec 019 + 020):** carrega `listMcpTokens(user.id)`, filtra os
+  ativos (`revokedAt === null`), mapeia p/ DTO (`McpTokenItem`, datas ISO) e passa a `<McpSetupCard
+  tokens appBaseUrl>` — `appBaseUrl = env.APP_BASE_URL` (spec 020) monta o comando `claude mcp add …
+  /api/mcp` copiável do card. Lê `searchParams.github` (`Promise`) p/ exibir o banner do retorno do
   OAuth: `connected` → sucesso (verde), `error` → falha (vermelho).
 
 ## O que NÃO vai aqui

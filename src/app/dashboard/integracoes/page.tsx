@@ -10,6 +10,7 @@ import {
 } from "@/components/integracoes/projects-manager";
 import { AppHeader } from "@/components/layout/app-header";
 import { requireUser } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import { getConnectionStatus } from "@/lib/github/connection";
 import { listMcpTokens } from "@/lib/mcp/tokens";
 import { listProjects, scopeForUser } from "@/lib/projects";
@@ -70,7 +71,7 @@ export default async function IntegracoesPage({
         )}
         <GithubConnectionCard connection={conn} />
         <ProjectsManager projects={projectItems} connection={conn} />
-        <McpSetupCard tokens={mcpTokens} />
+        <McpSetupCard tokens={mcpTokens} appBaseUrl={env.APP_BASE_URL} />
       </div>
     </>
   );

@@ -1,7 +1,9 @@
-// "Projeto atual" do MCP (spec 015): descobre onde o servidor stdio subiu (cwd = raiz do repo
-// pelo `.mcp.json`) lendo o `git remote origin`, e resolve isso para um `projectId` do escopo.
-// `parseGitRemote` é PURO (unit). `detectCurrentRepo` é o ÚNICO ponto de I/O com o git externo.
-// `resolveProjectId` delega ao domínio de projetos (`findProjectByRef`), nunca toca Postgres aqui.
+// "Projeto atual" do MCP (spec 015 + 020): `detectCurrentRepo` lê o `git remote origin` do cwd e
+// resolve p/ um `projectId` do escopo. No transporte HTTP (`/api/mcp`, spec 020) o git fica
+// DESLIGADO via `resolveProjectId(..., { detectRepo: false })` — o repo do servidor não é o do
+// cliente; a função segue existindo p/ uso futuro. `parseGitRemote` é PURO (unit). `detectCurrentRepo`
+// é o ÚNICO ponto de I/O com o git externo. `resolveProjectId` delega ao domínio de projetos
+// (`findProjectByRef`), nunca toca Postgres aqui.
 import { execFileSync } from "node:child_process";
 import { findProjectByRef, type Scope } from "@/lib/projects";
 
@@ -59,10 +61,16 @@ export function detectCurrentRepo(
  * - sem `override` → tenta o "projeto atual" via `git remote origin`. Repo não detectável → `null`
  *   (caller cai p/ todo o escopo). Repo detectado mas não cadastrado → `null` (graceful);
  *   `ambiguous` → lança (há projetos demais casando, precisa desambiguar).
+ *
+ * `opts.detectRepo` (spec 020): no transporte HTTP (`/api/mcp`) o git do SERVIDOR não faz sentido
+ * (leria o repo do servidor, não o do cliente) → passar `false` desliga o `detectCurrentRepo()` e,
+ * sem override, devolve `null` (escopo inteiro) sem nenhum I/O. Default (`undefined`/`true`) mantém
+ * o comportamento do stdio. É um *seam*: cortamos a dependência em vez de stubá-la (CLAUDE §5.3).
  */
 export async function resolveProjectId(
   scope: Scope,
   override?: string,
+  opts?: { detectRepo?: boolean },
 ): Promise<string | null> {
   if (override !== undefined && override.trim() !== "") {
     const match = await findProjectByRef(scope, override);
@@ -76,6 +84,8 @@ export async function resolveProjectId(
       `Projeto "${override}" não encontrado no escopo. Use metas_projects para listar.`,
     );
   }
+
+  if (opts?.detectRepo === false) return null;
 
   const repo = detectCurrentRepo();
   if (!repo) return null;

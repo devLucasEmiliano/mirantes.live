@@ -31,11 +31,10 @@ const schema = z.object({
   // Peso por commit atribuído: avança `current_value` da meta. CI não conta (§spec 013).
   GOAL_WEIGHT_COMMIT: z.coerce.number().default(1),
   GOAL_WEIGHT_MERGE: z.coerce.number().default(5),
-  // Token de serviço do servidor MCP (stdio). Obrigatório p/ INICIAR o MCP (fail-closed);
-  // opcional no resto do app (o boot do Next não exige).
+  // Token de serviço do servidor MCP (spec 020): enviado no header `Authorization: Bearer` do
+  // route `/api/mcp`, resolve p/ escopo admin (compat operador/local). Opcional — cada usuário
+  // usa o seu token pessoal (spec 019); não é mais fail-closed de boot (stdio removido).
   MCP_SERVICE_TOKEN: z.string().min(16).optional(),
-  MCP_TRANSPORT: z.enum(["stdio", "http"]).default("stdio"),
-  MCP_HTTP_PORT: z.coerce.number().int().positive().optional(),
   // Sync automático do GitHub (spec 016). O worker arranca no boot via
   // `instrumentation.ts`. Intervalo do loop (default seguro 60s — ver SPEC §12 sobre
   // rate limit) e flag de autostart ("0" desliga: e2e/vitest e worker standalone).
