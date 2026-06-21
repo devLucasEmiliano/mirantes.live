@@ -1,5 +1,5 @@
-// Resolver determinístico commit→meta (spec 013) — PURO (sem I/O). É o FALLBACK quando o LLM
-// está offline e também o HINT passado ao LLM. Precedência: keyword (M-12 / meta #12) > branch
+// Resolver determinístico commit→meta (spec 013) — PURO (sem I/O). É o ÚNICO caminho de atribuição
+// (o classificador LLM foi removido na spec 016). Precedência: keyword (M-12 / meta #12) > branch
 // (commit na branch vinculada, ou merge cujo título cita a branch) > vínculo manual.
 
 export interface CandidateGoal {

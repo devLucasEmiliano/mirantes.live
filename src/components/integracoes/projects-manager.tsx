@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   GitBranch,
   GitCommit,
+  Globe,
   Loader2,
   Plus,
   RefreshCw,
@@ -39,6 +41,8 @@ export interface ProjectListItem {
   defaultBranch: string | null;
   /** ISO 8601 ou null — usado p/ o badge de conexão. */
   lastPolledAt: string | null;
+  /** Visível na home pública `/` (spec 016). */
+  isPublic: boolean;
 }
 
 interface ActivityCommit {
@@ -144,6 +148,20 @@ export function ProjectsManager({
   const [repo, setRepo] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+
+  // Edição (spec 016): nome + flag "Público" por projeto, salvos via PATCH. Estado por id,
+  // semeado a partir dos `projects` (Server Component) sempre que a lista muda.
+  const [edits, setEdits] = useState<
+    Record<string, { name: string; isPublic: boolean }>
+  >({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  useEffect(() => {
+    setEdits(
+      Object.fromEntries(
+        projects.map((p) => [p.id, { name: p.name, isPublic: p.isPublic }]),
+      ),
+    );
+  }, [projects]);
 
   // Seletor de repositórios (spec 010): carrega os repos da conta conectada e filtra os já
   // adicionados (via `projects`). A entrada manual segue como fallback.
@@ -296,6 +314,38 @@ export function ProjectsManager({
       router.refresh();
     } finally {
       setBusyId(null);
+    }
+  }
+
+  // Salva nome + "Público" (spec 016) via PATCH escopado; depois re-renderiza o Server Component.
+  async function handleSaveSettings(id: string) {
+    const edit = edits[id];
+    if (!edit) return;
+    setSavingId(id);
+    setFeedback((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: edit.name.trim(),
+          isPublic: edit.isPublic,
+        }),
+      });
+      if (res.ok) {
+        setFeedback((prev) => ({ ...prev, [id]: "Alterações salvas." }));
+        router.refresh();
+        return;
+      }
+      setFeedback((prev) => ({
+        ...prev,
+        [id]:
+          res.status === 404
+            ? "Projeto não encontrado."
+            : "Não foi possível salvar as alterações.",
+      }));
+    } finally {
+      setSavingId(null);
     }
   }
 
@@ -534,6 +584,29 @@ export function ProjectsManager({
                     </span>
                   </div>
 
+                  <ProjectSettings
+                    edit={
+                      edits[project.id] ?? {
+                        name: project.name,
+                        isPublic: project.isPublic,
+                      }
+                    }
+                    saving={savingId === project.id}
+                    onChange={(patch) =>
+                      setEdits((prev) => ({
+                        ...prev,
+                        [project.id]: {
+                          ...(prev[project.id] ?? {
+                            name: project.name,
+                            isPublic: project.isPublic,
+                          }),
+                          ...patch,
+                        },
+                      }))
+                    }
+                    onSave={() => handleSaveSettings(project.id)}
+                  />
+
                   {(!state || state.phase === "loading") && (
                     <span className="flex items-center gap-2 text-[12px] text-foreground-muted">
                       <Loader2 className="size-3.5 animate-spin" /> Carregando
@@ -660,6 +733,80 @@ export function ProjectsManager({
         )}
       </div>
     </CardShell>
+  );
+}
+
+// Painel de configurações por projeto (spec 016): renomear + alternar "Público". Controlado
+// pelo pai (estado em `edits`); salva via PATCH escopado. Sem Prisma/segredo aqui (só fetch).
+function ProjectSettings({
+  edit,
+  saving,
+  onChange,
+  onSave,
+}: {
+  edit: { name: string; isPublic: boolean };
+  saving: boolean;
+  onChange: (patch: Partial<{ name: string; isPublic: boolean }>) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <span className="font-body text-xs font-medium text-foreground-primary">
+          Nome do projeto
+        </span>
+        <input
+          data-testid="project-name-input"
+          value={edit.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          className="rounded-sm border border-border-subtle bg-surface-primary px-3.5 py-2.5 text-sm text-foreground-primary outline-none focus:border-accent-primary"
+        />
+      </div>
+
+      <button
+        type="button"
+        data-testid="project-public-toggle"
+        role="switch"
+        aria-checked={edit.isPublic}
+        onClick={() => onChange({ isPublic: !edit.isPublic })}
+        className="flex items-center justify-between gap-3 rounded-sm border border-border-subtle bg-surface-primary px-3.5 py-2.5 text-left"
+      >
+        <span className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 text-sm text-foreground-primary">
+            <Globe className="size-3.5 text-foreground-muted" /> Público
+          </span>
+          <span className="text-[11px] text-foreground-muted">
+            Aparece na home pública para qualquer visitante.
+          </span>
+        </span>
+        <span
+          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+            edit.isPublic ? "bg-status-done" : "bg-surface-elevated"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${
+              edit.isPublic ? "left-[18px]" : "left-0.5"
+            }`}
+          />
+        </span>
+      </button>
+
+      <button
+        type="button"
+        data-testid="project-save"
+        onClick={onSave}
+        disabled={saving || edit.name.trim().length === 0}
+        className="flex items-center gap-1.5 self-start rounded-sm bg-accent-primary px-5 py-2.5 text-[13px] font-semibold text-foreground-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {saving ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Check className="size-4" />
+        )}
+        Salvar
+      </button>
+    </div>
   );
 }
 

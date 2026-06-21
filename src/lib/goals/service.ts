@@ -145,6 +145,22 @@ export async function listGoals(
   return deriveTree(rows.map(toGoalRow), new Date());
 }
 
+/**
+ * Metas do projeto PÚBLICO (spec 016) — scope-free: serve só se o projeto for `isPublic`
+ * (`project: { isPublic: true }` no `where`, no lugar do `goalOwnerWhere`). A visibilidade
+ * pública É a autorização: passar o id de um projeto privado devolve `[]`. Mesma derivação de
+ * `listGoals`.
+ */
+export async function listPublicGoals(
+  projectId: string,
+): Promise<DerivedGoal[]> {
+  const rows = await db.goal.findMany({
+    where: { projectId, deletedAt: null, project: { isPublic: true } },
+    orderBy: { position: "asc" },
+  });
+  return deriveTree(rows.map(toGoalRow), new Date());
+}
+
 export async function createGoal(
   scope: Scope,
   input: CreateGoalInput,

@@ -78,6 +78,7 @@ model Project {
   owner         String
   repo          String
   description   String?
+  isPublic      Boolean       @default(false) @map("is_public") // vitrine pública `/` (spec 016)
   defaultBranch String?       @map("default_branch")
   lastPolledAt  DateTime?     @map("last_polled_at")
   lastSeenSha   String?       @map("last_seen_sha")
@@ -94,6 +95,7 @@ model Project {
 
   @@unique([userId, owner, repo])
   @@index([userId])
+  @@index([isPublic])
   @@map("projects")
 }
 

@@ -22,4 +22,6 @@ export default function globalSetup() {
   execSync("bun run tests/e2e/seed-events.ts", { stdio: "inherit", env });
   // Metas da spec 013: metas reais (M-1 1/2, M-2 concluída) no projeto-vitrine do admin (idempotente).
   execSync("bun run tests/e2e/seed-metas.ts", { stdio: "inherit", env });
+  // Home pública (spec 016): marca a vitrine + projeto do cliente como públicos; +1 privado de controle.
+  execSync("bun run tests/e2e/seed-public.ts", { stdio: "inherit", env });
 }

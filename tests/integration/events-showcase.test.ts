@@ -4,8 +4,8 @@ import { listShowcaseEvents } from "@/lib/events";
 import { createProject } from "@/lib/projects";
 import { seedUser } from "../setup/db";
 
-// Vitrine da home pública (spec 012, divergência aprovada): projeto mais antigo de um admin,
-// só `visibleToClient:true`. Sem `Scope` — visitante anônimo é menos privilegiado que client.
+// Vitrine da home pública (spec 016): projeto PÚBLICO mais antigo (antes "mais antigo de um
+// admin"), só `visibleToClient:true`. Sem `Scope` — a visibilidade `isPublic` é a autorização.
 
 async function eventOn(
   projectId: string,
@@ -22,7 +22,7 @@ async function eventOn(
   });
 }
 
-it("vitrine = projeto mais antigo de um admin; devolve só os visíveis dele", async () => {
+it("vitrine = projeto PÚBLICO mais antigo; devolve só os visíveis dele", async () => {
   const admin = await seedUser({
     email: "admin@x.com",
     password: "p",
@@ -40,44 +40,49 @@ it("vitrine = projeto mais antigo de um admin; devolve só os visíveis dele", a
     repo: "velho",
   });
   const recent = await createProject({
-    userId: admin.id,
+    userId: client.id,
     name: "Novo",
     owner: "o",
     repo: "novo",
   });
-  const clientProj = await createProject({
-    userId: client.id,
-    name: "Cli",
+  const privateProj = await createProject({
+    userId: admin.id,
+    name: "Privado",
     owner: "o",
-    repo: "cli",
+    repo: "priv",
   });
-  if (!old.ok || !recent.ok || !clientProj.ok) throw new Error("setup");
+  if (!old.ok || !recent.ok || !privateProj.ok) throw new Error("setup");
+  // Vitrine = público mais antigo (de qualquer dono); `privateProj` fica privado e fora.
+  await db.project.updateMany({
+    where: { id: { in: [old.project.id, recent.project.id] } },
+    data: { isPublic: true },
+  });
 
   await eventOn(old.project.id, { title: "vitrine-visível" });
   await eventOn(old.project.id, {
     title: "vitrine-oculto",
     visibleToClient: false,
   });
-  await eventOn(recent.project.id, { title: "outro-admin-projeto" });
-  await eventOn(clientProj.project.id, { title: "projeto-de-client" });
+  await eventOn(recent.project.id, { title: "outro-público" });
+  await eventOn(privateProj.project.id, { title: "de-projeto-privado" });
 
   const titles = (await listShowcaseEvents()).map((e) => e.title);
   expect(titles).toEqual(["vitrine-visível"]);
 });
 
-it("sem projeto de admin → vazio", async () => {
-  const client = await seedUser({
-    email: "cli@x.com",
+it("sem projeto público → vazio", async () => {
+  const admin = await seedUser({
+    email: "admin@x.com",
     password: "p",
-    role: "client",
+    role: "admin",
   });
   const p = await createProject({
-    userId: client.id,
-    name: "Cli",
+    userId: admin.id,
+    name: "Privado",
     owner: "o",
-    repo: "cli",
+    repo: "priv",
   });
   if (!p.ok) throw new Error("setup");
-  await eventOn(p.project.id, { title: "x" });
+  await eventOn(p.project.id, { title: "x" }); // projeto privado (default)
   expect(await listShowcaseEvents()).toEqual([]);
 });

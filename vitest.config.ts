@@ -28,12 +28,14 @@ export default defineConfig({
         process.env.GITHUB_TOKEN_ENC_KEY ??
         "CC0ZHvIj+wPc9tkJ3t/H8JbtGdAAYCjFJ6wS+bjDujs=",
       APP_BASE_URL: process.env.APP_BASE_URL ?? "http://localhost:3000",
-      // Spec 013: LLM sempre OFFLINE no teste (caminho determinístico); pesos fixos;
-      // token de serviço do MCP p/ os testes de auth/tools.
-      LLM_CLASSIFIER_KIND: "none",
+      // Spec 013: pesos fixos da atribuição (determinística); token de serviço do MCP
+      // p/ os testes de auth/tools. (Spec 016: classificador LLM removido.)
       GOAL_WEIGHT_COMMIT: "1",
       GOAL_WEIGHT_MERGE: "5",
       MCP_SERVICE_TOKEN: "test-mcp-token-aaaaaaaa",
+      // Spec 016: defensivo — nada importa `instrumentation` no vitest, mas deixa
+      // explícito que o autostart do sync fica desligado nos testes.
+      GITHUB_SYNC_AUTOSTART: "0",
     },
   },
 });

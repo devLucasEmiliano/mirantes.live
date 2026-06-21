@@ -8,6 +8,13 @@ created: 2026-06-19
 
 # 013 — Metas reais + atribuição automática de commits + MCP
 
+> **Divergência posterior (spec 016, 2026-06-21):** o **classificador LLM** commit→meta descrito
+> nesta spec foi **removido**. A atribuição automática é agora **100% determinística**
+> (`resolveDeterministic`: keyword → branch → manual). Foram apagados `src/lib/goals/classifier.ts`
+> e `tests/unit/goals-classifier.test.ts`, e removidas as envs `LLM_CLASSIFIER_*`. O caminho
+> `method:"llm"` deixou de existir (a coluna `commit_goal_links.method` permanece, sem migração).
+> Tudo que esta spec descreve sobre o LLM deve ser lido como histórico.
+
 ## Objetivo
 
 Substituir o **mock** de Metas (`/dashboard/metas` hoje renderiza `mockGoals`) por metas

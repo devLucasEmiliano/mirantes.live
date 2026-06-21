@@ -35,6 +35,7 @@ export default async function IntegracoesPage({
     repo: project.repo,
     defaultBranch: project.defaultBranch,
     lastPolledAt: project.lastPolledAt?.toISOString() ?? null,
+    isPublic: project.isPublic,
   }));
 
   return (

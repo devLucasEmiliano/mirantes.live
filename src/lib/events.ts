@@ -62,18 +62,32 @@ export async function listEvents(
 }
 
 /**
- * Feed da home PÚBLICA (sem `Scope`): a vitrine é o projeto mais antigo de um admin (casa com
- * o snapshot público); devolve só `visibleToClient:true` dele. Sem projeto de admin → `[]`.
+ * Feed da vitrine PÚBLICA (sem `Scope`): default = projeto PÚBLICO mais antigo (spec 016 — antes
+ * era "mais antigo de um admin"). Delega a `listPublicEvents` (só `visibleToClient:true`). Sem
+ * projeto público → `[]`. A home `/` compõe o feed do projeto SELECIONADO; este helper serve o
+ * default da vitrine.
  */
 export async function listShowcaseEvents(limit = 7): Promise<TimelineEvent[]> {
   const project = await db.project.findFirst({
-    where: { user: { role: "admin" } },
+    where: { isPublic: true },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
   if (!project) return [];
+  return listPublicEvents(project.id, limit);
+}
+
+/**
+ * Eventos do projeto PÚBLICO (spec 016) — scope-free: só `visibleToClient:true`, `id desc`.
+ * A home `/` e `listShowcaseEvents` delegam aqui depois de resolver o projeto público (cuja
+ * visibilidade já foi validada por `getPublicProject`/`resolvePublicSelection`).
+ */
+export async function listPublicEvents(
+  projectId: string,
+  limit = 7,
+): Promise<TimelineEvent[]> {
   const rows = await db.event.findMany({
-    where: { projectId: project.id, visibleToClient: true },
+    where: { projectId, visibleToClient: true },
     orderBy: { id: "desc" },
     take: limit,
   });

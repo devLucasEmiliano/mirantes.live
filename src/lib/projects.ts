@@ -60,6 +60,10 @@ export type DeleteProjectResult =
   | { ok: true }
   | { ok: false; error: "not_found" };
 
+export type UpdateProjectResult =
+  | { ok: true; project: Project }
+  | { ok: false; error: "not_found" };
+
 export interface LatestCommit {
   sha: string;
   message: string;
@@ -156,6 +160,28 @@ export async function deleteProject(
   });
   if (count === 0) return { ok: false, error: "not_found" };
   return { ok: true };
+}
+
+/**
+ * Renomeia e/ou alterna a visibilidade pública de 1 projeto do ESCOPO (spec 016). `updateMany`
+ * com o filtro de dono é atômico: 0 linhas (alheio/inexistente) → not_found. Admin alcança
+ * qualquer projeto; cliente só os seus.
+ */
+export async function updateProject(
+  id: string,
+  scope: Scope,
+  patch: { name?: string; isPublic?: boolean },
+): Promise<UpdateProjectResult> {
+  const data: Prisma.ProjectUpdateInput = {};
+  if (patch.name !== undefined) data.name = patch.name;
+  if (patch.isPublic !== undefined) data.isPublic = patch.isPublic;
+  const { count } = await db.project.updateMany({
+    where: { id, ...ownerWhere(scope) },
+    data,
+  });
+  if (count === 0) return { ok: false, error: "not_found" };
+  const project = await db.project.findUniqueOrThrow({ where: { id } });
+  return { ok: true, project };
 }
 
 /**

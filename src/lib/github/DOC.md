@@ -54,7 +54,7 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `summarizeCommitBatch`, `deriveRunStatus` (status+conclusion →
   badge), `isValidRepoSlug` (charset `A-Za-z0-9._-`), `formatWeeklyDelta`. **Sem** I/O — pode
   ser importado por client components (só `import type` do client.ts, apagado em runtime).
-- **`sync.ts`** — `syncProject(projectId, client?, opts?: { classifier? })`: `project_not_found` / `not_connected`
+- **`sync.ts`** — `syncProject(projectId, client?)`: `project_not_found` / `not_connected`
   (sem client injetado e o token do dono não resolve via `resolveUserToken(project.userId)`)
   / `github_error`; sucesso → `{ inserted:{commits,branches,runs}, lastSeenSha }`.
   Commits via `createMany(skipDuplicates)` na unique `(project,sha)`; branches upsert
@@ -64,16 +64,25 @@ o banco (integração); `oauth.ts` é o único que fala com o github.com no flux
   `isMerge`) e gera `commit.created`/`commit.merged` (via `commitToEvent`, conforme `isMerge`)
   só p/ os realmente novos; p/ runs faz
   `findUnique`→`shouldEmitRunEvent`→`upsert`, acumulando `ci.run` (via `runToEvent`) apenas na
-  **transição p/ `completed`**. **Atribuição de metas (spec 013):** após o `createMany` dos
-  commits, re-`findMany` os SHAs **novos** e chama `attributeCommits` (de `@/lib/goals/attribution`)
-  em **try/catch próprio** (falha do LLM nunca derruba o sync), concatenando os eventos `goal.*` ao
+  **transição p/ `completed`**. **Atribuição de metas (spec 013; determinística desde a spec 016):**
+  após o `createMany` dos commits, re-`findMany` os SHAs **novos** e chama `attributeCommits` (de
+  `@/lib/goals/attribution`) em **try/catch próprio** (uma falha de atribuição nunca derruba o sync),
+  concatenando os eventos `goal.*` ao
   `eventInputs`; ao fim, `db.event.createMany` de todos. Importa de `@/lib/events/emit` e
   `@/lib/goals/*`. **Sem transação/PUBLISH** — o wrapper transacional + `PUBLISH goals:updates`
   entra na spec 014.
 - **`worker.ts`** — `runGitHubSyncLoop({ intervalMs })`: percorre `db.project.findMany` chamando
   `syncProject`, loga só contagens (NUNCA o token), sobrevive a erro por-projeto, encerra em
-  SIGINT/SIGTERM. Rodado por `bun run src/lib/github/worker.ts` (script `worker:github`). Sem teste
-  (fino) — o núcleo coberto é `syncProject`.
+  SIGINT/SIGTERM. **Autostart no boot (spec 016):** arranca junto com o app via
+  `src/instrumentation.ts`, além do standalone `bun run src/lib/github/worker.ts` (`worker:github`).
+  Exporta helpers **puros** (alvo unit, `tests/unit/github-sync-interval.test.ts`):
+  `MIN_INTERVAL_MS` (15s, piso anti-rate-limit), `resolveSyncInterval(raw, fallback, floor?)`
+  (override → senão `env.GITHUB_SYNC_INTERVAL_MS`; `undefined`/`NaN`/≤0 → fallback; clampa no piso) e
+  `shouldAutostart(runtime, flag)` (só `runtime==="nodejs"` && `flag==="1"`).
+  `startGitHubSyncLoopOnce()` dispara o loop **fire-and-forget** com guarda de instância única
+  (`Symbol.for` em `globalThis`, sobrevive ao HMR). Loop e autostart são *glue* fino e ficam fora de
+  `test_levels`; só os helpers puros têm unit (o núcleo I/O coberto é `syncProject`). Depende de
+  `@/lib/db`, `@/lib/env` e `./sync`.
 - **`backfill-merges.ts`** — backfill ÚNICO do passado: commits sincronizados ANTES da coluna
   `is_merge` não sabiam ser merge. `backfillCommitMerges(clientFor?)` re-busca 1 página de commits
   por projeto na branch padrão (a MESMA fonte do sync → cobre os commits já no banco), marca

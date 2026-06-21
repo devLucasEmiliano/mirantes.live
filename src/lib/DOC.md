@@ -12,7 +12,7 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - `events/` — eventos da Timeline (mapeadores puros commit/run, formatação de datas, backfill). Ver `events/DOC.md`.
 - `projects/` — seleção de projeto do header + `ref.ts` (match puro de referência humana → projeto, spec 015). Ver `projects/DOC.md`.
-- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta (LLM plugável + fallback determinístico). Único portão Postgres em `goals/service.ts`. Ver `goals/DOC.md`.
+- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta **100% determinística** (keyword → branch → manual; LLM removido na spec 016). Único portão Postgres em `goals/service.ts`. Ver `goals/DOC.md`.
 - `mcp/` — servidor **MCP** (stdio) de Metas (spec 013/015): expõe o service a ferramentas externas (Claude Code), operando no "projeto atual" (git remote) por ref/short code. Ver `mcp/DOC.md`.
 - Arquivos diretos nesta pasta (abaixo).
 
@@ -22,9 +22,13 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   global; entraram `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`,
   `GITHUB_TOKEN_ENC_KEY` (validada: precisa decodificar p/ **32 bytes** base64),
   `APP_BASE_URL` (url, monta o `redirect_uri` e os 303 de retorno) e
-  `GITHUB_OAUTH_FAKE?` (opcional, "1" curto-circuita a rede no e2e). Exporta `env` já
-  tipado; lança no boot se algo faltar. Importado por `db.ts`, `redis.ts`,
-  `auth/cookie.ts`, `crypto/secret.ts` e `github/*` (oauth, oauth-state, client).
+  `GITHUB_OAUTH_FAKE?` (opcional, "1" curto-circuita a rede no e2e). **Sync automático do
+  GitHub (spec 016):** `GITHUB_SYNC_INTERVAL_MS` (coerce number, default 60000 — intervalo do
+  worker; o piso de 15s mora em `github/worker.ts`) e `GITHUB_SYNC_AUTOSTART` (`"0"`/`"1"`,
+  default `"1"`; `"0"` desliga o autostart via instrumentation no e2e/vitest/standalone). Exporta
+  `env` já tipado; lança no boot se algo faltar. Importado por `db.ts`, `redis.ts`,
+  `auth/cookie.ts`, `crypto/secret.ts`, `github/*` (oauth, oauth-state, client, worker) e
+  `instrumentation.ts`.
 - **`db.ts`** — singleton do **Prisma Client** (padrão `globalThis` p/ hot-reload).
   No Prisma 7 o client exige driver adapter: usa `@prisma/adapter-pg` com
   `env.DATABASE_URL`. O pool `pg` é configurado com `keepAlive`, `idleTimeoutMillis`
@@ -44,15 +48,24 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   `latestCommit` segue exportado (testes/back-compat), mas **não é mais renderizado** (o card
   "último commit" saiu do dashboard). `findProjectByRef(scope, ref)` (spec 015) carrega
   `listProjects` e delega ao puro `matchProjectRef` (`projects/ref.ts`) p/ casar `owner/repo`|
-  `repo`|`name` → projeto (usado pelo MCP "projeto atual"). Retornos discriminados `ok`. Valida o
+  `repo`|`name` → projeto (usado pelo MCP "projeto atual"). `updateProject(id, scope, { name?,
+  isPublic? }): Promise<UpdateProjectResult>` (spec 016 home pública): renomeia e/ou alterna a
+  visibilidade pública de 1 projeto do ESCOPO via `updateMany { id, ...ownerWhere(scope) }` (atômico;
+  0 linhas afetadas = `{ ok:false, error:"not_found" }`; admin alcança qualquer projeto, cliente só
+  os seus). Em sucesso devolve `{ ok:true, project }`. O `Project` agora tem a coluna `isPublic`
+  (default `false`). Retornos discriminados `ok`. Valida o
   slug (de `github/map`) antes de gravar; colisão `(userId,owner,repo)` (P2002) → `already_exists`
   (o mesmo repo coexiste p/ donos diferentes). Única porta ao Postgres no domínio de projetos.
 - **`events.ts`** — leitura da **Timeline** unificada (spec 012). `listEvents(scope, {projectId?,
   cursor?, limit?})`: `where` por escopo (cliente → só `visibleToClient` E projeto próprio ou
   global; admin → tudo), filtro por `projectId`, `orderBy id desc`, cursor `id < cursor`; busca
   `limit+1` p/ derivar `nextCursor` → `{ events: TimelineEvent[]; nextCursor: string | null }`.
-  `listShowcaseEvents(limit=7)`: feed **público** da home (sem `Scope`) = eventos
-  `visibleToClient:true` do **projeto mais antigo de um admin** (vitrine); sem projeto → `[]`.
+  `listPublicEvents(projectId, limit=7): Promise<TimelineEvent[]>` (spec 016 home pública): feed
+  **público** scope-free de 1 projeto = `where { projectId, visibleToClient:true }`, `orderBy id desc`,
+  `take limit`. `listShowcaseEvents(limit=7)`: feed **público** da home (sem `Scope`) — a semântica
+  MUDOU (spec 016 home pública): a vitrine deixou de ser o "projeto mais antigo de um admin" e passou
+  a ser o **projeto PÚBLICO mais antigo** (`where { isPublic:true }`, `orderBy createdAt asc`),
+  delegando a `listPublicEvents`; sem projeto público → `[]`.
   `weeklyEventStats(scope, projectId?)`: contagens 7d (`commits`/`ci`/`total`) p/ o painel
   RESUMO DA SEMANA. DTO = `TimelineEvent` via `toDTO` (`id` `String()`, `createdAt` ISO).
   Depende de `@/lib/db` e do `Scope` de `projects.ts`. (A escrita/emissão de eventos mora em
@@ -66,9 +79,12 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - **`mock-data.ts`** — dados mock do front-end. `mockEvents` foi removido (spec 012). `mockGoals`/
   `mockSummary` **deixaram de ser consumidos pelo dashboard**: `/dashboard/metas` (spec 013) e a
   Visão Geral `/dashboard` (spec 014) leem metas/resumo reais via `goals/service` +
-  `summarizeGoals`. Ainda são usados **só** pela home pública de vitrine (`app/page.tsx`), até uma
-  spec própria migrá-la. Seguem mock: `mockGoals`, `mockSummary`, `mockServices`, `mockIncidents`,
-  `mockProjectUptimeDays` e demais.
+  `summarizeGoals`. A home pública `/` (spec 016 home pública) também passou a ler dados REAIS
+  (metas/cards/timeline do projeto público selecionado via `listPublicGoals` /
+  `publicWeeklyCommitStats` / `listPublicEvents` + `summarizeGoals`), de modo que `mockGoals`/
+  `mockSummary` **não são mais consumidos por nenhuma página** — o último consumidor real do mock
+  saiu. Seguem **definidos mas órfãos**, junto de `mockServices`, `mockIncidents`,
+  `mockProjectUptimeDays` e demais, que ainda alimentam o `UptimePanel` (que segue mock).
 
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.

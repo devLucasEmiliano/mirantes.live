@@ -24,10 +24,10 @@ Toda implementação **deve** usar exclusivamente:
   (transitivo via `shadcn`), **promovido a `dependencies`** (aprovado no chat). Script `mcp`
   (`bun run src/lib/mcp/entry.ts`, stdio). Convive com **zod 4** do app via ponte de tipos em
   `mcp/server.ts` (o SDK traz zod 3.25/v4-core só p/ seus tipos; runtime ok).
-- **Classificador LLM commit→meta** (spec 013): **OpenAI-compatível via `fetch` nativo** — **sem SDK
-  de LLM novo** (coerente com "sem Octokit"). Runtime **externo e opcional** (Ollama/LM Studio/
-  Unsloth, ou via MCP); default **`none`** (offline → resolver determinístico). **Nunca exigido nos
-  testes** (stubado por injeção; `LLM_CLASSIFIER_KIND=none` no `vitest.config`).
+- **Atribuição commit→meta (spec 013; LLM removido na spec 016):** **100% determinística** —
+  keyword (`M-12`/`meta #12`) → branch vinculada → vínculo manual (`src/lib/goals/resolver.ts`).
+  **Sem runtime/SDK/env de LLM.** O progresso de meta muda só por: sync determinístico do GitHub,
+  Claude Code via MCP, ou edição manual na UI/REST.
 
 > Não introduzir outras bibliotecas de UI, ORMs alternativos, gerenciadores de estado ou ferramentas de build sem aprovação explícita do humano registrada no chat. Se algo parecer faltar, **perguntar antes**, não improvisar.
 

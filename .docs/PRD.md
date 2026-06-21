@@ -9,7 +9,7 @@
 
 Sistema para um desenvolvedor solo apresentar o progresso de projetos a clientes. O **admin** cria e edita conteúdo e **vê tudo**; o **cliente** visualiza, com atualização em tempo real (sem refresh). **Projetos têm dono** (spec 009): cada cliente vê e gere **apenas os seus**; o admin vê todos.
 
-**Projeto é a raiz do domínio** (spec 008): cada **Projeto = exatamente 1 repositório GitHub**. O sistema é **multi-projeto** — metas, atividades (commits) e quedas penduram em `project_id` (cada nessas suas specs). O **seletor do header troca o contexto** (cookie `selected_project_id`; fallback = projeto mais antigo) e filtra dashboard + timeline (**spec 012**). A **Timeline** é real para commits/CI; metas/monitoramento seguem por evoluir. A **home pública** mostra a atividade real da **vitrine** (projeto mais antigo de um admin, só eventos visíveis).
+**Projeto é a raiz do domínio** (spec 008): cada **Projeto = exatamente 1 repositório GitHub**. O sistema é **multi-projeto** — metas, atividades (commits) e quedas penduram em `project_id` (cada nessas suas specs). O **seletor do header troca o contexto** (cookie `selected_project_id`; fallback = projeto mais antigo) e filtra dashboard + timeline (**spec 012**). A **Timeline** é real para commits/CI; metas/monitoramento seguem por evoluir. A **home pública `/`** é o **espelho só-leitura da Visão Geral** para o **projeto público selecionado** (spec 016 home pública): cards, metas e timeline **reais**, com um **seletor dos projetos públicos** (de qualquer dono). A seleção vem por **URL `?projeto=owner/repo`** (compartilhável) > **cookie `public_project_id`** > **projeto público mais antigo**. Visibilidade é **por projeto** (`is_public`, default privado), alternada em **Integrações** junto do rename.
 
 Além do acompanhamento de metas, o produto inclui um subsistema de **monitoramento de serviços** (uptime/incidentes), **integração com GitHub** (commits, GitHub Actions e branches — por polling do worker **e** sincronização manual) e uma **timeline unificada** de atividade.
 
@@ -33,7 +33,7 @@ Além do acompanhamento de metas, o produto inclui um subsistema de **monitorame
 2. **Metas** — árvore hierárquica de metas.
 3. **Timeline** — feed cronológico unificado de atividade.
 4. **Monitoramento** — uptime, status de serviços, incidentes, latência.
-5. **Integrações** — conexão do GitHub (OAuth por usuário) + gestão dos próprios projetos. Aberta a admin **e** cliente (cada um vê/gere só os seus; admin vê todos).
+5. **Integrações** — conexão do GitHub (OAuth por usuário) + gestão dos próprios projetos (adicionar/remover/sincronizar, **renomear** e alternar **"Público"** — spec 016 home pública). Aberta a admin **e** cliente (cada um vê/gere só os seus; admin vê todos).
 6. **Configurações** — área exclusiva do admin (serviços, retenção, ferramentas).
 
 ---
@@ -43,6 +43,7 @@ Além do acompanhamento de metas, o produto inclui um subsistema de **monitorame
 - **admin** (você): cria/edita/arquiva metas, configura serviços monitorados, marca visibilidade de eventos, gerencia retenção. **Vê e gere todos os projetos** (de qualquer dono). **Configurações** segue admin-only.
 - **client** (cliente): em Metas/Timeline/Monitoramento é leitura. **Projetos são por dono** (spec 009): o cliente **cria, vê, sincroniza e remove apenas os seus**, e conecta a **sua própria** conta do GitHub — tudo na tela **Integrações** (aberta a admin **e** cliente). **Não** vê a tela de Configurações.
 - **Sem cadastro público.** As contas (admin e clientes) são provisionadas por seed/script. Não há signup nem UI de gestão de contas.
+- **Home pública `/` (visitante anônimo):** só-leitura, restrita aos projetos marcados **`is_public`** (de qualquer dono); um projeto **privado nunca aparece nem responde por dados** (a visibilidade pública **é** a autorização). O dono (ou o admin) controla o `is_public` em **Integrações** (spec 016 home pública).
 
 ---
 
@@ -172,6 +173,7 @@ Três estados por serviço: **Online · Degradado · Offline**.
 
 - Provedor: **GitHub**. **Cada Projeto = exatamente 1 repositório** (spec 008).
 - Captura por **polling da API** (worker de fundo) **e** por **sincronização manual** ("Sincronizar Agora" em **Integrações**) — ambos sobre o mesmo núcleo idempotente, usando o token do **dono** do projeto.
+- O polling roda **automaticamente ao subir o app** (sem terminal extra): o worker arranca no boot e ressincroniza todos os projetos a cada ~60s, então os dados se atualizam sozinhos entre as sincronizações manuais (spec 016).
 - Sincroniza e persiste: **commits** (dedupe por SHA), **GitHub Actions** (workflow runs) e **branches** (com a default), além de nome/branch padrão do repo.
 - Autenticação por **OAuth por usuário** (spec 009): cada usuário conecta a **própria** conta ("Conectar GitHub"); o token OAuth é guardado **cifrado em repouso** (AES-256-GCM) no Postgres e usado só no header Authorization. Nunca exposto ao cliente, em log nem em URL.
 - Alimenta o card "Commits Semanais" e a **Atividade Recente/Timeline** (eventos `commit.created`/`ci.run` — **spec 012**). O bloco "último commit" do dashboard **saiu** (spec 012: redundante com a Atividade Recente).

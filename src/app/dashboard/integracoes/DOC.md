@@ -12,7 +12,8 @@ Uma página.
 - **`page.tsx`** (Server Component, `async`) — gate por `await requireUser()` (**não**
   `requireAdmin`: cliente entra). Lê os dados na DAL: `getConnectionStatus(user.id)` (status da
   conexão GitHub — sem token) e `listProjects(scopeForUser(user))` (projetos do escopo), mapeando
-  cada projeto p/ um DTO plano (`ProjectListItem`) com `lastPolledAt` em ISO. Monta `conn`
+  cada projeto p/ um DTO plano (`ProjectListItem`) com `lastPolledAt` em ISO e `isPublic`
+  (spec 016 — home pública `/`; o `ProjectsManager` exibe/edita o toggle "Público"). Monta `conn`
   (`{connected, githubLogin}`) e passa `<GithubConnectionCard connection>` + `<ProjectsManager
   projects connection>`. Lê `searchParams.github` (`Promise`) p/ exibir o banner do retorno do
   OAuth: `connected` → sucesso (verde), `error` → falha (vermelho).

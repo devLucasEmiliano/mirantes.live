@@ -2,8 +2,8 @@
 
 ## Propósito
 Vínculo **meta↔branch** (spec 013): base da atribuição determinística — um commit na branch
-vinculada (ou um merge que cite o nome dela) avança a meta quando o LLM está offline.
-Mutações **admin-only**. `params` é **Promise**.
+vinculada (ou um merge que cite o nome dela) avança a meta. (Atribuição 100% determinística;
+o classificador LLM foi removido na spec 016.) Mutações **admin-only**. `params` é **Promise**.
 
 ## Arquivos
 - **`route.ts`**

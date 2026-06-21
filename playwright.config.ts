@@ -20,6 +20,9 @@ const webEnv = {
     "CC0ZHvIj+wPc9tkJ3t/H8JbtGdAAYCjFJ6wS+bjDujs=",
   APP_BASE_URL: `http://localhost:${PORT}`,
   GITHUB_OAUTH_FAKE: "1",
+  // O e2e sobe `bun run dev`; sem isto o worker de sync (spec 016) arrancaria no meio
+  // dos testes e bateria no banco de teste com a rede do GitHub fake.
+  GITHUB_SYNC_AUTOSTART: "0",
   PORT: String(PORT),
 };
 

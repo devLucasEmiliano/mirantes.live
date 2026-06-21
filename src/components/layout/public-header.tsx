@@ -1,6 +1,10 @@
 import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { LiveTag } from "./live-tag";
+import {
+  PublicProjectSwitcher,
+  type PublicSwitcherItem,
+} from "./public-project-switcher";
 
 interface PublicHeaderProps {
   projectName: string;
@@ -9,14 +13,23 @@ interface PublicHeaderProps {
   live: boolean;
   /** ISO 8601 do snapshot; renderizado como horário local (oculto se for o fallback). */
   updatedAt: string;
+  /** Projetos públicos p/ o seletor (spec 016). */
+  projects: PublicSwitcherItem[];
+  /** Id do projeto público selecionado (URL `?projeto=` > cookie > mais antigo). */
+  selectedId: string | null;
 }
 
-/** Cabeçalho da home pública — alimentado pelo snapshot do Redis (SPEC §1/§4). */
+/**
+ * Cabeçalho da home pública — marca/tagline do snapshot (Redis, SPEC §1/§4) + seletor de
+ * projetos PÚBLICOS (spec 016). O seletor substitui o antigo chip estático da vitrine.
+ */
 export function PublicHeader({
   projectName,
   tagline,
   live,
   updatedAt,
+  projects,
+  selectedId,
 }: PublicHeaderProps) {
   const updatedLabel = formatUpdatedAt(updatedAt);
 
@@ -32,13 +45,8 @@ export function PublicHeader({
         </span>
       </div>
       <div className="flex items-center gap-3">
-        {/* Home pública = anônima, projeto único da vitrine → chip estático (sem dropdown). */}
-        <span className="flex items-center gap-1.5 px-1 py-0.5">
-          <span className="size-1.5 rounded-full bg-status-done" />
-          <span className="font-mono text-[11px] text-foreground-muted">
-            {projectName}
-          </span>
-        </span>
+        {/* Seletor de projetos públicos (qualquer dono); URL `?projeto=` é compartilhável. */}
+        <PublicProjectSwitcher projects={projects} selectedId={selectedId} />
         {live && <LiveTag />}
         {updatedLabel && (
           <span className="font-body text-[11px] text-foreground-muted">

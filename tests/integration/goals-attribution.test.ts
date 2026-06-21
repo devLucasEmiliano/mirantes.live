@@ -1,10 +1,6 @@
 import { expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { syncProject } from "@/lib/github/sync";
-import {
-  createOfflineClassifier,
-  createStubClassifier,
-} from "@/lib/goals/classifier";
 import { createGoal, linkBranch } from "@/lib/goals/service";
 import { createProject } from "@/lib/projects";
 import { future, seedUser } from "../setup/db";
@@ -39,18 +35,21 @@ async function seedProjectWithGoal(
   return { project: p.project, goal: g.goal };
 }
 
-it("stub atribui → cria link, move current_value, emite goal.updated", async () => {
+it("keyword (M-1) atribui → cria link, move current_value, emite goal.updated", async () => {
   const { project, goal } = await seedProjectWithGoal();
   await syncProject(
     project.id,
     makeStubClient({
       defaultBranch: "main",
-      commits: [ghCommit("a1", "feat: tela de login")],
+      commits: [ghCommit("a1", "feat: tela de login (M-1)")],
       branches: [ghBranch("main", "a1")],
       runs: [],
     }),
-    { classifier: createStubClassifier({ a1: goal.id }) },
   );
+  const link = await db.commitGoalLink.findFirstOrThrow({
+    where: { goalId: goal.id },
+  });
+  expect(link.method).toBe("keyword");
   expect(await db.commitGoalLink.count({ where: { goalId: goal.id } })).toBe(1);
   expect(
     (await db.goal.findUniqueOrThrow({ where: { id: goal.id } })).currentValue,
@@ -60,28 +59,7 @@ it("stub atribui → cria link, move current_value, emite goal.updated", async (
   ).toBe(1);
 });
 
-it("offline → fallback por keyword (M-1) no message", async () => {
-  const { project, goal } = await seedProjectWithGoal();
-  await syncProject(
-    project.id,
-    makeStubClient({
-      defaultBranch: "main",
-      commits: [ghCommit("a1", "fix: corrige login (M-1)")],
-      branches: [ghBranch("main", "a1")],
-      runs: [],
-    }),
-    { classifier: createOfflineClassifier() },
-  );
-  const link = await db.commitGoalLink.findFirstOrThrow({
-    where: { goalId: goal.id },
-  });
-  expect(link.method).toBe("keyword");
-  expect(
-    (await db.goal.findUniqueOrThrow({ where: { id: goal.id } })).currentValue,
-  ).toBe(1);
-});
-
-it("offline → fallback por branch vinculada (merge inclui o nome)", async () => {
+it("branch vinculada (merge cita o nome) atribui com peso de merge", async () => {
   const { project, goal } = await seedProjectWithGoal();
   await linkBranch(ADMIN, goal.id, "feature-login");
   await syncProject(
@@ -92,7 +70,6 @@ it("offline → fallback por branch vinculada (merge inclui o nome)", async () =
       branches: [ghBranch("main", "m1")],
       runs: [],
     }),
-    { classifier: createOfflineClassifier() },
   );
   const link = await db.commitGoalLink.findFirstOrThrow({
     where: { goalId: goal.id },
@@ -110,11 +87,10 @@ it("atingir o alvo → done + goal.completed + completedAt", async () => {
     project.id,
     makeStubClient({
       defaultBranch: "main",
-      commits: [ghCommit("a1", "feat: x")],
+      commits: [ghCommit("a1", "feat: x (M-1)")],
       branches: [ghBranch("main", "a1")],
       runs: [],
     }),
-    { classifier: createStubClassifier({ a1: goal.id }) },
   );
   const after = await db.goal.findUniqueOrThrow({ where: { id: goal.id } });
   expect(after.currentValue).toBe(1);
@@ -129,13 +105,12 @@ it("double-sync não duplica (link e current_value estáveis; sem reemissão)", 
   const { project, goal } = await seedProjectWithGoal();
   const client = makeStubClient({
     defaultBranch: "main",
-    commits: [ghCommit("a1", "feat: login")],
+    commits: [ghCommit("a1", "feat: login (M-1)")],
     branches: [ghBranch("main", "a1")],
     runs: [],
   });
-  const opts = { classifier: createStubClassifier({ a1: goal.id }) };
-  await syncProject(project.id, client, opts);
-  await syncProject(project.id, client, opts);
+  await syncProject(project.id, client);
+  await syncProject(project.id, client);
   expect(await db.commitGoalLink.count({ where: { goalId: goal.id } })).toBe(1);
   expect(
     (await db.goal.findUniqueOrThrow({ where: { id: goal.id } })).currentValue,
@@ -145,7 +120,7 @@ it("double-sync não duplica (link e current_value estáveis; sem reemissão)", 
   ).toBe(1);
 });
 
-it("sem match → unassigned, sem link, mas commit.created ainda é emitido", async () => {
+it("sem keyword nem branch → unassigned, sem link, mas commit.created é emitido", async () => {
   const { project, goal } = await seedProjectWithGoal();
   await syncProject(
     project.id,
@@ -155,30 +130,7 @@ it("sem match → unassigned, sem link, mas commit.created ainda é emitido", as
       branches: [ghBranch("main", "a1")],
       runs: [],
     }),
-    { classifier: createStubClassifier({ a1: null }) }, // LLM diz "nenhuma meta"
   );
   expect(await db.commitGoalLink.count({ where: { goalId: goal.id } })).toBe(0);
-  expect(await db.event.count({ where: { type: "commit.created" } })).toBe(1);
-});
-
-it("classifier que lança não derruba o sync (commits persistem)", async () => {
-  const { project } = await seedProjectWithGoal();
-  const boom = {
-    classify: async () => {
-      throw new Error("kaboom");
-    },
-  };
-  const res = await syncProject(
-    project.id,
-    makeStubClient({
-      defaultBranch: "main",
-      commits: [ghCommit("a1", "feat: x")],
-      branches: [ghBranch("main", "a1")],
-      runs: [],
-    }),
-    { classifier: boom },
-  );
-  expect(res.ok).toBe(true);
-  expect(await db.commit.count({ where: { projectId: project.id } })).toBe(1);
   expect(await db.event.count({ where: { type: "commit.created" } })).toBe(1);
 });
