@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import { GithubConnectionCard } from "@/components/integracoes/github-connection-card";
 import {
+  McpSetupCard,
+  type McpTokenItem,
+} from "@/components/integracoes/mcp-setup-card";
+import {
   type ProjectListItem,
   ProjectsManager,
 } from "@/components/integracoes/projects-manager";
 import { AppHeader } from "@/components/layout/app-header";
 import { requireUser } from "@/lib/auth/session";
 import { getConnectionStatus } from "@/lib/github/connection";
+import { listMcpTokens } from "@/lib/mcp/tokens";
 import { listProjects, scopeForUser } from "@/lib/projects";
 
 export const metadata: Metadata = {
@@ -38,6 +43,17 @@ export default async function IntegracoesPage({
     isPublic: project.isPublic,
   }));
 
+  // Tokens MCP do usuário (spec 019). Só os ATIVOS aparecem no card; datas em ISO p/ o client.
+  const mcpTokens: McpTokenItem[] = (await listMcpTokens(user.id))
+    .filter((token) => token.revokedAt === null)
+    .map((token) => ({
+      id: token.id,
+      name: token.name,
+      prefix: token.prefix,
+      lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+      createdAt: token.createdAt.toISOString(),
+    }));
+
   return (
     <>
       <AppHeader title="Integrações" breadcrumb="Dashboard / Integrações" />
@@ -54,6 +70,7 @@ export default async function IntegracoesPage({
         )}
         <GithubConnectionCard connection={conn} />
         <ProjectsManager projects={projectItems} connection={conn} />
+        <McpSetupCard tokens={mcpTokens} />
       </div>
     </>
   );

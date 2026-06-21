@@ -26,8 +26,28 @@ model User {
   avatar       Avatar? // foto de perfil (bytea) em tabela lateral
   connection   GithubConnection? // conexão OAuth (token cifrado) — tabela lateral 1:1
   projects     Project[] // projetos de que este usuário é dono (spec 009)
+  mcpTokens    McpToken[] // tokens pessoais do MCP (spec 019)
 
   @@map("users")
+}
+
+/// Token pessoal do MCP (spec 019): cada usuário gera N tokens que o servidor resolve para
+/// `{ role: "client", userId }`. Guardamos só `tokenHash` (sha256 hex, indexado @unique p/
+/// lookup O(1)) + um `tokenPrefix` curto p/ exibir — o texto puro é mostrado UMA vez e nunca
+/// persiste. Revogação por `revokedAt` (soft); `lastUsedAt` carimba o último resolve.
+model McpToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String // rótulo livre do usuário (ex. "Notebook")
+  tokenHash   String    @unique @map("token_hash") // sha256(token) hex — nunca o texto
+  tokenPrefix String    @map("token_prefix") // ex. "mir_AbC123…" só p/ exibir
+  lastUsedAt  DateTime? @map("last_used_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("mcp_tokens")
 }
 
 /// Foto de perfil (upload) guardada como `bytea` — sem storage externo (§0). Tabela

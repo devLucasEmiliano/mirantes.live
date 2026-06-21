@@ -439,7 +439,7 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 | Rate limit login | 5 / 15min / IP | global |
 | Heartbeat SSE | ~20s | global |
 | `GOAL_WEIGHT_COMMIT` / `GOAL_WEIGHT_MERGE` | 1 / 5 | global — peso da atribuição (spec 013) |
-| `MCP_SERVICE_TOKEN` | — (obrigatório p/ subir o MCP) | global — fail-closed (spec 013) |
+| `MCP_SERVICE_TOKEN` | — (obrigatório p/ subir o MCP stdio) | global — fail-closed; env→admin, ou token pessoal do usuário p/ stdio escopado (spec 013/019) |
 
 ---
 
@@ -448,8 +448,17 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 Processo **à parte** (`bun run mcp` → `src/lib/mcp/entry.ts`), transporte **stdio**, que expõe as
 Metas a ferramentas externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/goals/service`** do REST.
 
-- **Auth:** `resolveScopeFromToken` confere o `env.MCP_SERVICE_TOKEN`; válido → escopo **admin**.
-  **Fail-closed**: sem token configurado, o `entry.ts` recusa iniciar (exit 1).
+- **Auth (spec 013 → 019):** `resolveScopeFromToken(token)` é **assíncrono** e resolve o escopo na
+  ordem fail-closed: sem token → recusa; `=== env.MCP_SERVICE_TOKEN` (se configurado) → escopo
+  **admin** (compat operador/local); senão `sha256(token)` casa um **token pessoal ativo** (tabela
+  `mcp_tokens`, spec 019) → escopo **`{ client, userId }`** e carimba `last_used_at`;
+  desconhecido/revogado → recusa. O `entry.ts` mantém fail-closed (escopo `null` → exit 1); o usuário
+  pode pôr o **seu** token pessoal no `MCP_SERVICE_TOKEN` p/ rodar o stdio local escopado a si.
+- **Tokens por usuário (spec 019):** tabela `mcp_tokens` (`user_id`, `name`, `token_hash` **@unique**
+  = sha256(token) hex — só o hash em repouso, nunca o texto; `token_prefix` curto p/ exibir;
+  `last_used_at`, `revoked_at`). Gestão na tela de **Integrações** (gerar mostra o texto **uma vez**;
+  revogar é soft + escopado ao dono). SHA-256 e não argon2: token é alta entropia → KDF lento não
+  agrega segurança e impede o lookup O(1) por igualdade.
 - **Transporte:** `StdioServerTransport` (`@modelcontextprotocol/sdk`). stdout é do protocolo; **logs
   vão p/ stderr**. Saída limpa em SIGINT/SIGTERM.
 - **Projeto atual (spec 015):** as tools operam no projeto inferido do `git remote origin` do `cwd`
@@ -466,7 +475,8 @@ Metas a ferramentas externas (ex.: **Claude Code**) **reusando o mesmo `@/lib/go
   (retrocompatível com a 013).
 - **Reuso:** nenhuma lógica de metas mora no MCP — é só um adaptador (single source of truth no service);
   a resolução de projeto por ref vive no domínio (`projects/ref.ts` + `findProjectByRef`).
-- **Fora de escopo (futuro):** transporte HTTP/SSE remoto e tokens por-usuário; `MCP_DEFAULT_PROJECT`
-  por env; URL completa/múltiplos remotes (só `origin`); aqui só stdio + token de serviço.
+- **Fora de escopo (futuro):** transporte HTTP/SSE remoto em `/api/mcp` + comando de setup (spec 020);
+  `MCP_DEFAULT_PROJECT` por env; URL completa/múltiplos remotes (só `origin`); expiração/rotação
+  automática de tokens. Tokens **por-usuário** já existem (spec 019).
 
 ---

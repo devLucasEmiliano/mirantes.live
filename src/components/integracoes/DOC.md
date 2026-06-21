@@ -41,6 +41,15 @@ a conexão é uma barra fina própria. O visual segue o desenho `Yh9ef` de `desi
   com o `GithubMark` à esquerda. Desconectado: texto + botão "Conectar GitHub" que navega
   (`window.location.href`) p/ `/api/github/oauth/start` (início do OAuth). Conectado: mostra
   `@githubLogin` + botão "Desconectar" → `DELETE /api/github/connection` e `router.refresh()`.
+- **`mcp-setup-card.tsx`** (`"use client"`, spec 019) — `McpSetupCard` + a interface `McpTokenItem`
+  (DTO plano com datas ISO). Card "MCP / Claude Code" (reusa `CardShell`): recebe os tokens **ativos**
+  por props (o Server Component carrega `listMcpTokens`); lista cada token (`mcp-token-row`,
+  `data-prefix`) com rótulo, prefixo, último uso e botão revogar (`mcp-token-revoke` →
+  `DELETE /api/mcp-tokens/:id`). **Gerar token:** form (`mcp-token-name` + `mcp-token-generate`) →
+  `POST /api/mcp-tokens {name}`; a resposta traz o texto puro, mostrado **uma vez** num painel com
+  `mcp-token-plaintext` + copiar (`mcp-token-copy`, `navigator.clipboard`). Após cada mutação:
+  `router.refresh()`. O **comando de setup** copiável (`claude mcp add …`) fica para a spec 020 (MCP
+  via HTTP).
 - **`github-mark.tsx`** — `GithubMark`, ícone da marca do GitHub (octocat) em SVG inline com
   `currentColor`. Existe porque o lucide-react desta versão **removeu os ícones de marca**.
   Puramente presentacional (sem `"use client"`, sem estado); aceita `className` p/ tamanho/cor.

@@ -7,7 +7,7 @@ import { resolveScopeFromToken } from "./auth";
 import { createMetasMcpServer } from "./server";
 
 async function main(): Promise<void> {
-  const scope = resolveScopeFromToken(env.MCP_SERVICE_TOKEN);
+  const scope = await resolveScopeFromToken(env.MCP_SERVICE_TOKEN);
   if (!scope) {
     console.error(
       "[mcp] MCP_SERVICE_TOKEN ausente/curto — recusando iniciar (fail-closed).",

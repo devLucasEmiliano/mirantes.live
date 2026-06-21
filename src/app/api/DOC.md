@@ -16,6 +16,8 @@ que precisam de runtime Node (cookies, banco, Redis) — fora do render de compo
 - `goals/` — Metas (spec 013): coleção (`GET`/`POST`) + item `[id]` (`PATCH`/`DELETE`) +
   `[id]/branch-link` e `[id]/commit-link`. Leitura escopada; mutações admin-only. Ver
   `goals/DOC.md`.
+- `mcp-tokens/` — Tokens pessoais do MCP (spec 019): coleção (`GET`/`POST`) + item `[id]`
+  (`DELETE` revoga). Sempre do `current.id`; o texto puro só na criação. Ver `mcp-tokens/DOC.md`.
 - (demais grupos — monitoring, stream… — entram nas suas specs.)
 
 ## Arquivos
