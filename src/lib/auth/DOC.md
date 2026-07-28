@@ -23,6 +23,13 @@ Quatro módulos, sem subpastas. `cookie.ts` é **puro** (usável no `proxy.ts`);
   `INCR`/`EXPIRE`/`DEL` no Redis (`ratelimit:login:<id>`, 5/15min → 429). O login aplica
   em duas dimensões — `ip:<ip>` e `email:<email>` (esta imune a IP forjado). Fail-open se
   o Redis cair.
+- **`create-user.ts`** — provisionamento de conta fora do seed (PRD §2: contas só por
+  seed/script, sem cadastro público). `createUser(email, role, name?)` gera senha
+  aleatória (`randomBytes`), faz hash e cria a linha (`create`, não `upsert` — email
+  duplicado falha alto em vez de sobrescrever). Auto-run via
+  `bun run src/lib/auth/create-user.ts <email> [admin|client] [nome]` (script
+  `user:create`): imprime a senha **uma única vez** no terminal; nunca fica em texto no
+  repo.
 
 ## O que NÃO vai aqui
 - **`cookie.ts` não pode importar `next/headers`** — precisa rodar no proxy. Setar/limpar

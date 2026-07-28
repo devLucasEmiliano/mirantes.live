@@ -15,6 +15,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "worker:github": "bun run src/lib/github/worker.ts",
+    "user:create": "bun run src/lib/auth/create-user.ts",
     "db:backfill": "bun run src/lib/events/backfill.ts",
     "db:backfill-merges": "bun run src/lib/github/backfill-merges.ts",
     "test": "vitest run",
