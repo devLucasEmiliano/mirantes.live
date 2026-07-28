@@ -1,0 +1,9 @@
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [],
+  "permissions": {
+    "allow": [
+      "mcp__mirantes-metas__metas_create"
+    ]
+  }
+}
