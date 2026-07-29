@@ -12,9 +12,9 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - `events/` — eventos da Timeline (mapeadores puros commit/run, formatação de datas, backfill). Ver `events/DOC.md`.
 - `projects/` — seleção de projeto do header + `ref.ts` (match puro de referência humana → projeto, spec 015). Ver `projects/DOC.md`.
-- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta **100% determinística** (keyword → branch → manual; LLM removido na spec 016). Único portão Postgres em `goals/service.ts`. Ver `goals/DOC.md`.
+- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta **100% determinística** (keyword → branch → manual; LLM removido na spec 016). Único portão Postgres em `goals/service.ts`. **Leitura ganhou o escopo de equipe** (spec 022, `goalReadWhere`). Ver `goals/DOC.md`.
 - `mcp/` — servidor **MCP** (stdio) de Metas (spec 013/015): expõe o service a ferramentas externas (Claude Code), operando no "projeto atual" (git remote) por ref/short code. Ver `mcp/DOC.md`.
-- Arquivos diretos nesta pasta (abaixo).
+- Arquivos diretos nesta pasta (abaixo), incluindo `teams.ts` (spec 022).
 
 ## Arquivos
 - **`env.ts`** — valida `process.env` com zod (`DATABASE_URL`, `REDIS_URL`,
@@ -70,6 +70,14 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   RESUMO DA SEMANA. DTO = `TimelineEvent` via `toDTO` (`id` `String()`, `createdAt` ISO).
   Depende de `@/lib/db` e do `Scope` de `projects.ts`. (A escrita/emissão de eventos mora em
   `events/` e em `github/sync.ts`.)
+- **`teams.ts`** — serviço de **Equipes** (spec 022), único portão Postgres do domínio: grupo de
+  usuários com leitura compartilhada das metas de um projeto, admin-only. `listTeams` (com
+  membros/projetos resolvidos), `createTeam`, `deleteTeam` (delete físico — não é domínio
+  auditável), `addMember`/`removeMember`, `assignProject`/`unassignProject` (`UPDATE
+  project.teamId` — atribuir a uma 2ª equipe MOVE, cardinalidade 1 é garantida pela própria
+  natureza do UPDATE), `listAssignableUsers`/`listAssignableProjects` (p/ os `<select>` do
+  admin), `listTeamProjectIdsForUser`/`listTeamProjectsForUser` (usados por
+  `goals/service.goalReadWhere` e por `goals/team-select.ts`).
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
 - **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). `Goal` foi
   **estendido aditivamente** (spec 013) com campos opcionais das metas reais: `shortCode`,

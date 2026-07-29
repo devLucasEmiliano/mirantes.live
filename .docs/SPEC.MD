@@ -94,6 +94,28 @@ timestamp) — **cache opcional**, com **fallback** estático se a chave faltar/
 - `progress`/`status` em pais são **ignorados** na leitura (recalculados); manter colunas mas tratá-las como derivadas no app.
 - **Medível (spec 013):** folha com `target_value` deriva o progresso de `|current−start|/|target−start|` (§5.5); sem `target_value`, segue o `progress` manual.
 
+### 2.10 `teams`, `team_members` (acesso compartilhado de leitura — spec 022)
+
+**`teams`** — agrupa usuários com leitura compartilhada das metas de um projeto:
+| coluna | tipo | notas |
+|--------|------|-------|
+| id | uuid PK | |
+| name | text not null | |
+| created_at | timestamptz | default now() |
+
+**`team_members`** — N:N usuário↔equipe (sem papel próprio: o vínculo só concede leitura):
+| coluna | tipo | notas |
+|--------|------|-------|
+| id | uuid PK | |
+| team_id | uuid FK→teams (cascade) | |
+| user_id | uuid FK→users (cascade) | |
+| created_at | timestamptz | default now() |
+- `@@unique(team_id, user_id)`; `@@index(user_id)`.
+
+`projects` ganha `team_id uuid FK→teams null` (`onDelete: SetNull`), `@@index(team_id)` — **no
+máx. 1 equipe por projeto**; 1 usuário pode participar de várias equipes. Gestão 100% admin-only
+(`@/lib/teams`, único portão Postgres do domínio).
+
 ### 2.9 `goal_branch_links`, `commit_goal_links`, `goal_code_counters` (atribuição automática — spec 013)
 - **`goal_branch_links`** — vínculo meta↔branch p/ atribuição determinística. `(goal_id, project_id, branch_name)`; unique `(project_id, branch_name)`.
 - **`commit_goal_links`** — aplicação **idempotente** de 1 commit a 1 meta. `(commit_id, goal_id, weight, method, applied_value)`; **unique `(commit_id, goal_id)`** (anti double-count). `method ∈ {keyword, branch, manual}` (o valor `llm` foi descontinuado na spec 016; a coluna permanece, sem migração).
@@ -249,6 +271,13 @@ timestamp) — **cache opcional**, com **fallback** estático se a chave faltar/
 | GET | `/api/github/repos` | autenticado | lista os repos da conta conectada (seletor de projetos); `not_connected`→409, `github_error`→502 |
 | GET/PATCH | `/api/settings` | admin | retenção, intervalos, PAT |
 | GET | `/api/stream` | autenticado | canal SSE |
+| GET | `/api/teams` | admin | lista equipes (com membros e projetos) (spec 022) |
+| POST | `/api/teams` | admin | cria equipe `{name}` |
+| DELETE | `/api/teams/:id` | admin | remove a equipe (cascade em membros; `projects.teamId` → null) |
+| POST | `/api/teams/:id/members` | admin | adiciona membro `{userId}`; `team_not_found`/`user_not_found`/`already_member`→404 |
+| DELETE | `/api/teams/:id/members/:userId` | admin | remove membro (revoga leitura); inexistente→404 |
+| POST | `/api/teams/:id/projects` | admin | atribui projeto `{projectId}` (move se já tinha outra equipe); `team_not_found`/`project_not_found`→404 |
+| DELETE | `/api/teams/:id/projects/:projectId` | admin | desatribui (só se pertence a ESTA equipe); senão→404 |
 
 **Regra transversal de mutação:** grava no Postgres (transação) → insere em `events` → `PUBLISH goals:updates {event}` no Redis → SSE entrega.
 
@@ -263,6 +292,14 @@ request); fallback estático se ausente. O Postgres permanece a fonte de verdade
 ## 5. Metas — algoritmos
 
 ### 5.1 Leitura da árvore (`GET /api/goals`)
+
+> **Escopo de leitura (spec 022):** o `WHERE` (`goalReadWhere`, `@/lib/goals/service.ts`) passa a
+> incluir, p/ `role=client`, os projetos de qualquer equipe de que o usuário participa —
+> `{ OR: [{ project: { userId } }, { projectId: { in: teamProjectIds } }] }` — além dos próprios.
+> Admin segue sem filtro. **A mutação NÃO muda**: `goalOwnerWhere` (usado por
+> `createGoal`/`updateGoal`/`archiveGoal`/`linkBranch`/`unlinkBranch`/`linkCommit`) segue só-dono,
+> então um membro de equipe nunca consegue mutar meta de projeto alheio (`not_found`).
+
 1. `SELECT * FROM goals WHERE deleted_at IS NULL ORDER BY parent_id, position`.
 2. Montar árvore em memória.
 3. **Pós-ordem (bottom-up)** para derivar pais:
@@ -422,6 +459,12 @@ pelo **worker de polling** (`bun run src/lib/github/worker.ts`, script `worker:g
 - Segredos só no servidor; nunca em URL, log ou resposta ao cliente. O **token OAuth do GitHub** é guardado **cifrado em repouso** (AES-256-GCM, `src/lib/crypto/secret.ts`); a chave (`env.GITHUB_TOKEN_ENC_KEY`, 32 bytes base64) fica **fora** do banco. O fluxo OAuth usa **`state` anti-CSRF** (HMAC + cookie httpOnly, comparado byte-a-byte no callback) e `redirect_uri` fixo derivado de `APP_BASE_URL`.
 - Rate limit no login.
 - Validação de input (zod) em todos os Route Handlers.
+- **Equipes (spec 022):** acesso compartilhado é **estritamente leitura**. Mesmo com o escopo de
+  leitura de metas ampliado por equipe (`goalReadWhere`), a **mutação segue exclusiva de
+  `role=admin`** — `goalOwnerWhere` (usado por toda mutação de metas) não conhece equipe; um
+  membro de equipe tentando `POST`/`PATCH`/`DELETE` numa meta de projeto compartilhado recebe
+  `not_found`, igual a qualquer projeto alheio. A gestão de equipes em si (`/api/teams*`) é
+  100% admin-only.
 
 ---
 

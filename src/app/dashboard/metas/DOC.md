@@ -12,9 +12,15 @@ pelo projeto selecionado. Subrota `nova/` para o formulário de criação.
 - **`page.tsx`** — `MetasPage` (Server Component, async). `requireUser()` → `scopeForUser` →
   `resolveSelectedProject(scope)` (cookie; fallback = mais antigo) → `listGoals(scope, projectId)`
   → `map(toGoalDTO)` → `MetasView`. Passa `canMutate = user.role === "admin"`. Sem mais
-  `mockGoals`. Interatividade/mutações no `MetasView` (cliente).
+  `mockGoals`. Interatividade/mutações no `MetasView` (cliente). **Metas de equipe (spec 022):**
+  se `scope.role === "client"`, carrega também `teamProjects = await listTeamProjectsForUser
+  (user.id)`, `selectedTeam = await resolveTeamProjectSelection(user.id)` e `teamGoals =
+  selectedTeam ? (await listGoals(scope, selectedTeam.id)).map(toGoalDTO) : []`, passados a
+  `<TeamMetasSection>` abaixo do `<MetasView>` — seção independente, com seletor/cookie
+  PRÓPRIOS (não usa `resolveSelectedProject`/`selected_project_id`).
 
 ## O que NÃO vai aqui
 - **Sem `mockGoals`** — dados vêm de `@/lib/goals/service` (`listGoals`), escopados por papel.
-- **Sem acesso direto ao Prisma na página** — só via o service (único portão Postgres das metas).
-  A guarda de sessão base é do `dashboard/layout.tsx`; aqui `requireUser()` reforça e dá o escopo.
+- **Sem acesso direto ao Prisma na página** — só via o service (único portão Postgres das metas)
+  e via `@/lib/teams` (equipes). A guarda de sessão base é do `dashboard/layout.tsx`; aqui
+  `requireUser()` reforça e dá o escopo.

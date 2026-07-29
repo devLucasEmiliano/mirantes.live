@@ -21,6 +21,9 @@ que precisam de runtime Node (cookies, banco, Redis) — fora do render de compo
 - `mcp/` — Servidor MCP de Metas via **HTTP** (spec 020): `POST`/`GET`/`DELETE /api/mcp`,
   autenticado por **Bearer** (token pessoal → client; env → admin; ausente/inválido → 401). Serve as
   7 tools sem amarra ao git (substitui o stdio). Ver `mcp/DOC.md`.
+- `teams/` — Equipes (spec 022): acesso compartilhado (leitura) às metas de um projeto.
+  Coleção (`GET`/`POST`) + item `[id]` (`DELETE`) + `[id]/members` (`POST`/`[userId]/DELETE`)
+  + `[id]/projects` (`POST`/`[projectId]/DELETE`). Tudo **admin-only**. Ver `teams/DOC.md`.
 - (demais grupos — monitoring, stream… — entram nas suas specs.)
 
 ## Arquivos

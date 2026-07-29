@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { PasswordForm } from "@/components/configuracoes/password-form";
 import { ProfileForm } from "@/components/configuracoes/profile-form";
+import { TeamsManagerCard } from "@/components/configuracoes/teams-manager";
 import {
   DangerZoneCard,
   ProjectSettingsCard,
@@ -11,6 +12,11 @@ import {
 import { AppHeader } from "@/components/layout/app-header";
 import { requireAdmin } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import {
+  listAssignableProjects,
+  listAssignableUsers,
+  listTeams,
+} from "@/lib/teams";
 
 export const metadata: Metadata = {
   title: "Configurações — Mirantes.Live",
@@ -51,26 +57,40 @@ export default async function ConfiguracoesPage() {
   });
   if (!user) redirect("/login");
 
+  // Equipes (spec 022): card funcional próprio, full-width abaixo do layout de 2 colunas.
+  const [teams, assignableUsers, assignableProjects] = await Promise.all([
+    listTeams(),
+    listAssignableUsers(),
+    listAssignableProjects(),
+  ]);
+
   return (
     <>
       <AppHeader title="Configurações" breadcrumb="Dashboard / Configurações" />
-      <div className="flex flex-1 gap-6 px-8 py-6">
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <ProfileForm
-            initialName={user.name ?? ""}
-            initialEmail={user.email}
-            memberSince={formatMemberSince(user.createdAt)}
-            initialHasAvatar={user.avatar !== null}
-            initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
-          />
-          <PasswordForm />
+      <div className="flex flex-1 flex-col gap-6 px-8 py-6">
+        <div className="flex gap-6">
+          <div className="flex min-w-0 flex-1 flex-col gap-5">
+            <ProfileForm
+              initialName={user.name ?? ""}
+              initialEmail={user.email}
+              memberSince={formatMemberSince(user.createdAt)}
+              initialHasAvatar={user.avatar !== null}
+              initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
+            />
+            <PasswordForm />
+          </div>
+          <div className="flex w-[380px] shrink-0 flex-col gap-5">
+            <ReportsCard />
+            <UptimeMonitoringCard />
+            <ProjectSettingsCard />
+            <DangerZoneCard />
+          </div>
         </div>
-        <div className="flex w-[380px] shrink-0 flex-col gap-5">
-          <ReportsCard />
-          <UptimeMonitoringCard />
-          <ProjectSettingsCard />
-          <DangerZoneCard />
-        </div>
+        <TeamsManagerCard
+          teams={teams}
+          users={assignableUsers}
+          projects={assignableProjects}
+        />
       </div>
     </>
   );

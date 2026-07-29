@@ -6,6 +6,7 @@ import type { Goal, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import type { Scope } from "@/lib/projects";
+import { listTeamProjectIdsForUser } from "@/lib/teams";
 import {
   applyWeight,
   type DerivedGoal,
@@ -55,6 +56,28 @@ export type LinkResult = { ok: true } | { ok: false; error: "not_found" };
 /** Escopo de leitura/mutação: admin tudo; cliente só metas de projeto próprio (globais excluídas). */
 export function goalOwnerWhere(scope: Scope): Prisma.GoalWhereInput {
   return scope.role === "admin" ? {} : { project: { userId: scope.userId } };
+}
+
+/**
+ * Escopo de LEITURA (spec 022): admin tudo; cliente sem equipe = igual a `goalOwnerWhere`;
+ * cliente com equipe(s) = próprias + projetos de qualquer equipe de que participa. Só p/
+ * leitura — `goalOwnerWhere` segue intocado e é quem barra mutação em projeto de equipe
+ * (não é "seu" → not_found), como decidido no PRD §2/spec 022.
+ */
+export async function goalReadWhere(
+  scope: Scope,
+): Promise<Prisma.GoalWhereInput> {
+  if (scope.role === "admin") return {};
+  const teamProjectIds = await listTeamProjectIdsForUser(scope.userId);
+  if (teamProjectIds.length === 0) {
+    return { project: { userId: scope.userId } };
+  }
+  return {
+    OR: [
+      { project: { userId: scope.userId } },
+      { projectId: { in: teamProjectIds } },
+    ],
+  };
 }
 
 function projectScopeWhere(scope: Scope): Prisma.ProjectWhereInput {
@@ -125,20 +148,25 @@ export async function findGoalIdByShortCode(
   shortCode: string,
 ): Promise<string | null> {
   const goal = await db.goal.findFirst({
-    where: { projectId, shortCode, deletedAt: null, ...goalOwnerWhere(scope) },
+    where: {
+      projectId,
+      shortCode,
+      deletedAt: null,
+      ...(await goalReadWhere(scope)),
+    },
     select: { id: true },
   });
   return goal?.id ?? null;
 }
 
-/** Árvore derivada (top-level) do escopo, opcionalmente filtrada por projeto. */
+/** Árvore derivada (top-level) do escopo (dono + equipes, spec 022), opcionalmente filtrada por projeto. */
 export async function listGoals(
   scope: Scope,
   projectId?: string | null,
 ): Promise<DerivedGoal[]> {
   const where: Prisma.GoalWhereInput = {
     deletedAt: null,
-    ...goalOwnerWhere(scope),
+    ...(await goalReadWhere(scope)),
     ...(projectId != null ? { projectId } : {}),
   };
   const rows = await db.goal.findMany({ where, orderBy: { position: "asc" } });

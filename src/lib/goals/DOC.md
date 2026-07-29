@@ -4,11 +4,16 @@
 Camada de **Metas** (spec 013): metas hierárquicas, progresso medível **X→Y**, derivação de pai,
 e **atribuição automática commit→meta 100% determinística** (keyword → branch → manual; o
 classificador LLM foi removido na spec 016). Núcleo reutilizado pelo REST (`/api/goals*`), pelo
-MCP (`@/lib/mcp`) e pelos Server Components.
+MCP (`@/lib/mcp`) e pelos Server Components. **Leitura ganhou o escopo de EQUIPE** (spec 022):
+membro de equipe lê (só leitura) as metas de projetos atribuídos à(s) equipe(s) de que participa.
 
 ## Estrutura
-Puros (unit, sem I/O): `derive.ts`, `resolver.ts`, `emit.ts`, `dto.ts`, `summary.ts`. Com I/O (integração):
-`service.ts` (único portão Postgres), `attribution.ts` (orquestrador do sync).
+Puros (unit, sem I/O): `derive.ts`, `resolver.ts`, `emit.ts`, `dto.ts`, `summary.ts`,
+`team-select.ts` (`pickTeamProject`). Com I/O (integração): `service.ts` (único portão Postgres),
+`attribution.ts` (orquestrador do sync), `team-select.ts` (`resolveTeamProjectSelection`, spec
+022 — espelha `@/lib/projects/select.ts`), `team-actions.ts` (Server Action
+`selectMetasTeamProject`, arquivo `"use server"` DEDICADO — espelha `@/lib/projects/actions.ts`;
+ver nota em `team-select.ts` sobre por que não ficou no mesmo arquivo).
 
 ## Arquivos
 - **`derive.ts`** (puro) — regras de cálculo: `computePercent`/`applyWeight` (X→Y, |Δ|, clamp),

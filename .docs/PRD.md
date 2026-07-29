@@ -41,7 +41,7 @@ Além do acompanhamento de metas, o produto inclui um subsistema de **monitorame
 ## 2. Papéis e visibilidade
 
 - **admin** (você): cria/edita/arquiva metas, configura serviços monitorados, marca visibilidade de eventos, gerencia retenção. **Vê e gere todos os projetos** (de qualquer dono). **Configurações** segue admin-only.
-- **client** (cliente): em Metas/Timeline/Monitoramento é leitura. **Projetos são por dono** (spec 009): o cliente **cria, vê, sincroniza e remove apenas os seus**, e conecta a **sua própria** conta do GitHub — tudo na tela **Integrações** (aberta a admin **e** cliente). **Não** vê a tela de Configurações.
+- **client** (cliente): em Metas/Timeline/Monitoramento é leitura. **Projetos são por dono** (spec 009): o cliente **cria, vê, sincroniza e remove apenas os seus**, e conecta a **sua própria** conta do GitHub — tudo na tela **Integrações** (aberta a admin **e** cliente). **Não** vê a tela de Configurações. Além dos próprios projetos, um cliente pode **visualizar (somente leitura) as metas** de projetos de uma **equipe** de que participa (spec 022) — equipes são geridas só pelo admin; o acesso de equipe é restrito à tela/API de Metas (Visão Geral, Timeline, Monitoramento e Integrações do projeto continuam só do dono).
 - **Sem cadastro público.** As contas (admin e clientes) são provisionadas por seed/script. Não há signup nem UI de gestão de contas.
 - **Home pública `/` (visitante anônimo):** só-leitura, restrita aos projetos marcados **`is_public`** (de qualquer dono); um projeto **privado nunca aparece nem responde por dados** (a visibilidade pública **é** a autorização). O dono (ou o admin) controla o `is_public` em **Integrações** (spec 016 home pública).
 
@@ -60,6 +60,11 @@ Além do acompanhamento de metas, o produto inclui um subsistema de **monitorame
 ---
 
 ## 4. Metas
+
+> **Escopo de leitura (spec 022):** a leitura de metas de um `client` é escopada por **dono OU
+> equipe** — além das metas dos próprios projetos, vê (somente leitura) as dos projetos de
+> qualquer equipe de que participa. **Mutação não muda**: criar/editar/arquivar/vincular segue
+> exclusiva de `role=admin`, mesmo em projeto de equipe (não é "seu" → `not_found`).
 
 ### 4.1 Estrutura
 - Hierarquia com **profundidade ilimitada** (meta → sub → sub-sub → …).
@@ -186,6 +191,7 @@ Tela exclusiva do admin (cliente não acessa nem vê). Contém:
 - **Serviços monitorados**: adicionar/editar/remover; tipo de check (HTTP/Docker), URL/container, status codes OK, threshold de latência, intervalo de polling, N falhas para incidente.
 - **Retenção da Timeline**: janela em dias (configurável).
 - **Conta**: editar **nome, email e foto** (upload de imagem) do perfil + troca de senha do usuário logado (spec 007).
+- **Equipes** (spec 022): criar/remover equipes, gerir membros e atribuir projetos (1 projeto → no máx. 1 equipe).
 
 > **Projetos e GitHub saíram daqui** (spec 009): a gestão de projetos (adicionar/remover/**sincronizar**) e a **conexão OAuth do GitHub** vivem agora em **Integrações** — tela própria, aberta a admin **e** cliente (cada um só os seus). Ver §8.
 
@@ -249,6 +255,7 @@ uma meta; ver §4.9). O **PUBLISH/SSE** ainda fica para a spec 014; aqui os `goa
 | Senha | Troca logado, sem reset público |
 | Login | Com rate limiting |
 | SSE | Reconexão + Last-Event-ID + heartbeat |
+| Equipes | Grupo de usuários com leitura compartilhada das metas de um projeto; só admin gere; 1 projeto → no máx. 1 equipe (spec 022) |
 
 ---
 
