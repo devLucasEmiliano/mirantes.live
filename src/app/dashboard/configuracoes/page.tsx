@@ -57,7 +57,8 @@ export default async function ConfiguracoesPage() {
   });
   if (!user) redirect("/login");
 
-  // Equipes (spec 022): card funcional próprio, full-width abaixo do layout de 2 colunas.
+  // Equipes (spec 022): card funcional próprio. Spec 023: mora na COLUNA ESQUERDA (a da conta),
+  // logo abaixo de Alterar Senha — a coluna direita tem 4 cards e a esquerda sobrava vazia.
   const [teams, assignableUsers, assignableProjects] = await Promise.all([
     listTeams(),
     listAssignableUsers(),
@@ -67,30 +68,28 @@ export default async function ConfiguracoesPage() {
   return (
     <>
       <AppHeader title="Configurações" breadcrumb="Dashboard / Configurações" />
-      <div className="flex flex-1 flex-col gap-6 px-8 py-6">
-        <div className="flex gap-6">
-          <div className="flex min-w-0 flex-1 flex-col gap-5">
-            <ProfileForm
-              initialName={user.name ?? ""}
-              initialEmail={user.email}
-              memberSince={formatMemberSince(user.createdAt)}
-              initialHasAvatar={user.avatar !== null}
-              initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
-            />
-            <PasswordForm />
-          </div>
-          <div className="flex w-[380px] shrink-0 flex-col gap-5">
-            <ReportsCard />
-            <UptimeMonitoringCard />
-            <ProjectSettingsCard />
-            <DangerZoneCard />
-          </div>
+      <div className="flex flex-1 gap-6 px-8 py-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
+          <ProfileForm
+            initialName={user.name ?? ""}
+            initialEmail={user.email}
+            memberSince={formatMemberSince(user.createdAt)}
+            initialHasAvatar={user.avatar !== null}
+            initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
+          />
+          <PasswordForm />
+          <TeamsManagerCard
+            teams={teams}
+            users={assignableUsers}
+            projects={assignableProjects}
+          />
         </div>
-        <TeamsManagerCard
-          teams={teams}
-          users={assignableUsers}
-          projects={assignableProjects}
-        />
+        <div className="flex w-[380px] shrink-0 flex-col gap-5">
+          <ReportsCard />
+          <UptimeMonitoringCard />
+          <ProjectSettingsCard />
+          <DangerZoneCard />
+        </div>
       </div>
     </>
   );

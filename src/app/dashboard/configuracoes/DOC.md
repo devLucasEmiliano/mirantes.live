@@ -12,12 +12,15 @@ Uma página.
 ## Arquivos
 - **`page.tsx`** (Server Component, `async`) — `await requireAdmin()` (cliente → `/dashboard`),
   depois **busca o usuário real** (`db.user.findUnique`: `name`, `email`, `createdAt`,
-  `avatar.updatedAt`). Formata "Membro desde" no servidor (evita drift de locale). Layout: duas
-  colunas no topo (esquerda = `ProfileForm` + `PasswordForm`; direita = cartões de ferramentas de
-  admin — `ReportsCard`, `UptimeMonitoringCard`, `ProjectSettingsCard`, `DangerZoneCard`, mock/
-  estático) e, abaixo, **full-width** o `<TeamsManagerCard>` (spec 022) — carrega `listTeams()` +
-  `listAssignableUsers()` + `listAssignableProjects()` de `@/lib/teams` em paralelo. Não usa mais
-  `listProjects`/`env`/`hasToken`/`ProjectsManager`.
+  `avatar.updatedAt`). Formata "Membro desde" no servidor (evita drift de locale). Layout (spec
+  023): **duas colunas, e só isso** — um único wrapper `flex gap-6 px-8 py-6`. Coluna esquerda
+  (fluida, `min-w-0 flex-1`) = `ProfileForm` + `PasswordForm` + `<TeamsManagerCard>`; coluna
+  direita (fixa, `w-[380px]`) = ferramentas de admin (`ReportsCard`, `UptimeMonitoringCard`,
+  `ProjectSettingsCard`, `DangerZoneCard`, mock/estático). Equipes **deixou de ser full-width
+  abaixo do bloco** (spec 022): a coluna direita tem 4 cards e a esquerda só 2, então sobrava um
+  vazio ao lado de Alterar Senha e o card de Equipes ia parar no fim da página. Carrega
+  `listTeams()` + `listAssignableUsers()` + `listAssignableProjects()` de `@/lib/teams` em
+  paralelo. Não usa mais `listProjects`/`env`/`hasToken`/`ProjectsManager`.
 
 ## O que NÃO vai aqui
 - **Acesso de cliente** — barrado por `requireAdmin`; nunca confiar só na ocultação no sidebar.

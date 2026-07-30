@@ -11,33 +11,56 @@ async function login(page: Page, email: string, password: string) {
   await page.waitForURL("**/dashboard");
 }
 
-test("admin gerencia equipe: cria, adiciona membro e atribui projeto", async ({
+// O banco de teste NÃO é truncado entre execuções da suíte e2e (só re-semeado), e a equipe
+// criada aqui fica. Nome único por execução p/ o locator da linha nunca casar 2 equipes.
+const TEAM_NAME = `Equipe QA E2E ${Date.now()}`;
+
+test("admin gerencia equipe: cria, busca membro e atribui projeto", async ({
   page,
 }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto("/dashboard/configuracoes");
 
-  await page.getByTestId("team-name-input").fill("Equipe QA E2E");
+  await page.getByTestId("team-name-input").fill(TEAM_NAME);
   await page.getByTestId("team-create").click();
 
-  const row = page.getByTestId("team-row").filter({ hasText: "Equipe QA E2E" });
+  const row = page.getByTestId("team-row").filter({ hasText: TEAM_NAME });
   await expect(row).toBeVisible();
   await row.getByTestId("team-row-toggle").click();
 
-  await row
-    .getByTestId("team-member-select")
-    .selectOption({ label: "Membro Equipe" });
-  await row.getByTestId("team-member-add").click();
-  await expect(row.getByTestId("team-member-row")).toContainText(
+  // Membro: o picker começa fechado; abre pelo link.
+  await expect(row.getByTestId("team-member-search")).toHaveCount(0);
+  await row.getByTestId("team-member-picker-open").click();
+  await expect(row.getByTestId("team-member-search")).toBeVisible();
+
+  // A busca precisa REALMENTE filtrar: com "membro" sobra só o usuário semeado.
+  await row.getByTestId("team-member-search").fill("membro");
+  await expect(row.getByTestId("team-member-option")).toHaveCount(1);
+  await expect(row.getByTestId("team-member-option")).toContainText(
     "Membro Equipe",
   );
+  await row.getByTestId("team-member-option").click();
 
-  await row
-    .getByTestId("team-project-select")
-    .selectOption({ label: "devlucasemiliano/segundo-repo" });
-  await row.getByTestId("team-project-add").click();
+  // Folga acima dos 5s padrão do expect: o POST + router.refresh() cai no 1º hit da rota,
+  // que o `next dev` ainda está compilando (o resto da suíte roda no mesmo servidor).
+  await expect(row.getByTestId("team-member-row")).toContainText(
+    "Membro Equipe",
+    { timeout: 30_000 },
+  );
+  // Adicionado some da busca (não dá para adicionar duas vezes).
+  await row.getByTestId("team-member-picker-open").click();
+  await row.getByTestId("team-member-search").fill("membro");
+  await expect(row.getByTestId("team-member-option")).toHaveCount(0);
+
+  // Projeto: mesma mecânica.
+  await row.getByTestId("team-project-picker-open").click();
+  await row.getByTestId("team-project-search").fill("segundo");
+  await expect(row.getByTestId("team-project-option")).toHaveCount(1);
+  await row.getByTestId("team-project-option").click();
+
   await expect(row.getByTestId("team-project-row")).toContainText(
     "devlucasemiliano/segundo-repo",
+    { timeout: 30_000 },
   );
 });
 

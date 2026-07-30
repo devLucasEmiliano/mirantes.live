@@ -1,7 +1,7 @@
 ---
 id: 023
 title: UI de Equipes — busca no lugar de dropdown + card na coluna da conta
-status: approved     # draft | approved | tests-red | done
+status: done         # draft | approved | tests-red | done
 test_levels: [unit, e2e]
 created: 2026-07-30
 ---
@@ -394,14 +394,49 @@ alteração; inventar caso novo aqui seria teste vazio (CLAUDE.md §5.2).
   label é `teamNameOf`, coberto em unit; o resto é uma `<span>`. Não vale semear uma 2ª equipe só
   para isso.
 
+## Divergências da implementação (registro §3.2)
+
+1. **`<SearchPicker>` ganhou a prop `itemIdAttr`.** O desenho pedia `data-user-id`/`data-project-id`
+   na linha da opção, mas quem renderiza o `<button>` é o picker (não o `renderItem` do pai). Em vez
+   de vazar "usuário/projeto" para dentro do componente genérico, o pai passa o **nome** do atributo
+   e o picker o preenche com `keyOf(item)`.
+2. **O link do picker alterna o rótulo** para "Cancelar" quando aberto (mesmo `data-testid`),
+   espelhando o "Ocultar entrada manual" de Integrações. O desenho só previa o rótulo de abertura.
+3. **`tests/e2e/teams.spec.ts` — duas mudanças além da reescrita prevista:**
+   - Nome da equipe **único por execução** (`Equipe QA E2E ${Date.now()}`). O banco e2e **não é
+     truncado entre execuções** (o `global-setup` só migra + faz upsert dos seeds), então a equipe
+     criada aqui sobrevive; o nome fixo do desenho fazia o locator casar 2+ linhas na 2ª execução.
+   - `timeout: 30_000` nas duas asserções **pós-mutação** (linha do membro / do projeto). O padrão do
+     `expect` é 5s e o `POST` cai no 1º hit da rota, que o `next dev` ainda está compilando —
+     capturado no snapshot da falha como a opção `[disabled]`, sem mensagem de erro (request em voo).
+4. **Infra local de teste (fora do código do produto):** `.env.test` não existia nesta máquina
+   (é gitignored) e foi gerado a partir do `.env` conforme o `.env.example`. O banco `mirantes_test`
+   estava com **drift**: a migration descartada `20260729222612_sistema_de_equipes` (renomeada
+   durante a spec 022, existe no banco e não no repo) tinha criado `teams.owner_id NOT NULL`, o que
+   fazia todo `INSERT` em `teams` estourar `P2011` e derrubava o `global-setup`. Resolvido com
+   `prisma migrate reset` **no banco de teste** (autorizado no chat).
+
+## Pendência herdada, fora do escopo desta spec
+
+`tests/e2e/visao-geral.spec.ts:22` falha (`1/2` não encontrado) mesmo com banco limpo: `metas.spec.ts`
+roda antes na mesma execução e cria a meta M-3 "Migrar banco", então o card "Metas Concluídas" vira
+`1/3`. É poluição cruzada entre specs (débito das specs 013/014), independente da 023 — nenhum
+arquivo tocado aqui participa daquela tela. Em execuções repetidas sem reset o mesmo acúmulo derruba
+também `metas.spec.ts` (3× "Migrar banco" → strict mode violation) e `configuracoes.spec.ts` (senha
+do admin trocada e não restaurada). Corrigir exige limpeza de estado no `global-setup` do e2e —
+spec própria.
+
 ## Critérios de pronto
 
-- [ ] `bun run test` verde, com `tests/unit/teams-filter.test.ts` tendo sido visto **vermelho**.
-- [ ] `bun run test:e2e` verde, com o 1º teste de `teams.spec.ts` tendo sido visto **vermelho**.
-- [ ] Card **Equipes** renderiza na coluna esquerda, abaixo de Alterar Senha.
-- [ ] Membros e Projetos usam busca; nenhum `<select>` sobra em `teams-manager.tsx`/`team-row.tsx`.
-- [ ] Projeto de outra equipe aparece com badge `em {equipe}`.
-- [ ] `bun run lint` (Biome) e `bun run typecheck` sem erro.
-- [ ] `DOC.md` atualizados: `src/components/configuracoes` (incl. o `teams-manager.tsx` que a
+- [x] `bun run test` verde (41 arquivos, 247 testes), com `tests/unit/teams-filter.test.ts` tendo
+      sido visto **vermelho** (`Cannot find package '@/lib/teams-filter'`).
+- [x] `bun run test:e2e` a partir de banco limpo: **25 passaram**, 1 skip, 1 falha pré-existente
+      (`visao-geral`, ver pendência acima). Os 2 testes de `teams.spec.ts` passam, e o 1º foi visto
+      **vermelho** (timeout em `team-member-picker-open`, testid inexistente).
+- [x] Card **Equipes** renderiza na coluna esquerda, abaixo de Alterar Senha.
+- [x] Membros e Projetos usam busca; nenhum `<select>` sobra em `teams-manager.tsx`/`team-row.tsx`.
+- [x] Projeto de outra equipe aparece com badge `em {equipe}`.
+- [x] `bun run lint` (Biome) e `bun run typecheck` sem erro.
+- [x] `DOC.md` atualizados: `src/components/configuracoes` (incl. o `teams-manager.tsx` que a
       spec 022 esqueceu), `src/app/dashboard/configuracoes`, `src/lib`.
-- [ ] Esta spec marcada `done` (atualizada se divergiu).
+- [x] Esta spec marcada `done`, com as divergências registradas acima.

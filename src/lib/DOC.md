@@ -77,7 +77,17 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   project.teamId` — atribuir a uma 2ª equipe MOVE, cardinalidade 1 é garantida pela própria
   natureza do UPDATE), `listAssignableUsers`/`listAssignableProjects` (p/ os `<select>` do
   admin), `listTeamProjectIdsForUser`/`listTeamProjectsForUser` (usados por
-  `goals/service.goalReadWhere` e por `goals/team-select.ts`).
+  `goals/service.goalReadWhere` e por `goals/team-select.ts`). Os `<select>` viraram busca na spec
+  023, mas as duas funções `listAssignable*` seguem iguais (a UI filtra no cliente).
+- **`teams-filter.ts`** — helpers **puros** dos pickers de Equipes (spec 023), consumidos pelos
+  Client Components `team-row.tsx`/`search-picker.tsx`: `normalize` (lower-case + NFD sem acento),
+  `filterUsers(users, memberIds, query)` (tira quem já é membro; casa nome OU email),
+  `filterProjects(projects, teamId, query)` (tira os JÁ desta equipe, mantém os de OUTRA — clicar
+  MOVE; casa `owner/repo`) e `teamNameOf(teamId, teams)` (label do badge `em {equipe}`).
+  **Mora fora de `teams.ts` de propósito:** aquele arquivo importa `@/lib/db` → `pg`, e um Client
+  Component importando de lá arrastaria o Prisma p/ o bundle do browser (`Module not found:
+  net/tls`). Pelo mesmo motivo **não** existe `src/lib/teams/`: `@/lib/teams` ficaria ambíguo na
+  resolução de módulo. Sem `@/lib/db`, sem React, sem `"use server"` — testável em unit puro.
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
 - **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). `Goal` foi
   **estendido aditivamente** (spec 013) com campos opcionais das metas reais: `shortCode`,
@@ -97,6 +107,9 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.
 - **Sem `"use client"`** — `db.ts`/`redis.ts`/`auth/*` são exclusivamente servidor.
+- **Módulo importado por Client Component não pode tocar `@/lib/db`** — o `pg` vaza p/ o bundle do
+  browser. Helper puro consumido pelo cliente vira arquivo próprio (ex. `teams-filter.ts` ao lado
+  de `teams.ts`), nunca um export a mais no serviço que fala com o Postgres.
 - Segredos só via `env.ts` (nunca hardcoded, log ou resposta ao cliente).
 - Regras de negócio de metas/eventos/monitoramento entram em libs próprias nas suas specs,
   não aqui de forma genérica.
