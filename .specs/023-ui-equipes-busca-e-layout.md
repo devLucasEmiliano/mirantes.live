@@ -1,7 +1,7 @@
 ---
 id: 023
 title: UI de Equipes — busca no lugar de dropdown + card na coluna da conta
-status: draft        # draft | approved | tests-red | done
+status: approved     # draft | approved | tests-red | done
 test_levels: [unit, e2e]
 created: 2026-07-30
 ---
