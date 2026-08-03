@@ -8,10 +8,12 @@ import { db } from "@/lib/db";
  * `workflow_runs`/`events`/`goals`/links (spec 008/012/013). `events` e `goals` são
  * nomeados à parte porque os GLOBAIS (`project_id NULL`) não têm pai p/ cascatear; o
  * TRUNCATE também zera a identity bigint do `events`. RESTART IDENTITY zera as sequences.
+ * `teams` (spec 022) cascateia `team_members`; `projects.team_id` já está coberto por
+ * estar na própria lista (a ordem entre nomes não importa p/ TRUNCATE ... CASCADE).
  */
 export async function truncateAll(): Promise<void> {
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE "users", "projects", "events", "goals" RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE "users", "projects", "events", "goals", "teams" RESTART IDENTITY CASCADE`,
   );
 }
 

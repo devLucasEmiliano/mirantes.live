@@ -24,4 +24,7 @@ export default function globalSetup() {
   execSync("bun run tests/e2e/seed-metas.ts", { stdio: "inherit", env });
   // Home pública (spec 016): marca a vitrine + projeto do cliente como públicos; +1 privado de controle.
   execSync("bun run tests/e2e/seed-public.ts", { stdio: "inherit", env });
+  // Equipes (spec 022): 2º cliente (equipe@mirantes.live) membro de "Equipe QA", com o projeto
+  // do admin atribuído — depende do projeto + metas do admin já semeados (seed-metas.ts).
+  execSync("bun run tests/e2e/seed-teams.ts", { stdio: "inherit", env });
 }

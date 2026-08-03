@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { PasswordForm } from "@/components/configuracoes/password-form";
 import { ProfileForm } from "@/components/configuracoes/profile-form";
+import { TeamsManagerCard } from "@/components/configuracoes/teams-manager";
 import {
   DangerZoneCard,
   ProjectSettingsCard,
@@ -11,6 +12,11 @@ import {
 import { AppHeader } from "@/components/layout/app-header";
 import { requireAdmin } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import {
+  listAssignableProjects,
+  listAssignableUsers,
+  listTeams,
+} from "@/lib/teams";
 
 export const metadata: Metadata = {
   title: "Configurações — Mirantes.Live",
@@ -51,6 +57,14 @@ export default async function ConfiguracoesPage() {
   });
   if (!user) redirect("/login");
 
+  // Equipes (spec 022): card funcional próprio. Spec 023: mora na COLUNA ESQUERDA (a da conta),
+  // logo abaixo de Alterar Senha — a coluna direita tem 4 cards e a esquerda sobrava vazia.
+  const [teams, assignableUsers, assignableProjects] = await Promise.all([
+    listTeams(),
+    listAssignableUsers(),
+    listAssignableProjects(),
+  ]);
+
   return (
     <>
       <AppHeader title="Configurações" breadcrumb="Dashboard / Configurações" />
@@ -64,6 +78,11 @@ export default async function ConfiguracoesPage() {
             initialAvatarVersion={user.avatar?.updatedAt.getTime() ?? 0}
           />
           <PasswordForm />
+          <TeamsManagerCard
+            teams={teams}
+            users={assignableUsers}
+            projects={assignableProjects}
+          />
         </div>
         <div className="flex w-[380px] shrink-0 flex-col gap-5">
           <ReportsCard />

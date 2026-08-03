@@ -3,11 +3,12 @@
 ## Propósito
 Componentes da área de **Metas** (spec 013): árvore recursiva, linha de meta, painel de detalhe
 e formulário de criação. Consomem metas **reais** (`Goal` de `@/lib/types`, vindas de
-`goals/service` via `toGoalDTO`) e fazem mutações via `fetch` na API `/api/goals*`.
+`goals/service` via `toGoalDTO`) e fazem mutações via `fetch` na API `/api/goals*`. Também a
+seção **"Metas de equipe"** (spec 022) — leitura compartilhada, sempre read-only.
 
 ## Estrutura
-- `metas-view` e `goal-form` são clientes (`"use client"`); `goal-row` e `goal-detail-panel`
-  são de apresentação.
+- `metas-view`, `goal-form` e `team-metas-section` são clientes (`"use client"`); `goal-row` e
+  `goal-detail-panel` são de apresentação.
 
 ## Arquivos
 - **`goal-row.tsx`** — `GoalRow({ goal, chevron?, showDue?, subdued?, compact?, className? })`:
@@ -24,11 +25,21 @@ e formulário de criação. Consomem metas **reais** (`Goal` de `@/lib/types`, v
   meta medível; `dueDate` tem default (hoje+30d). Em sucesso, `router.push` + `router.refresh`.
 - **`metas-view.tsx`** (`"use client"`) — `MetasView({ goals, canMutate? })`: busca recursiva,
   árvore de **profundidade ilimitada** (`GoalTree`), seleção → `GoalDetailPanel`, arquivar/editar
-  via `fetch` (`DELETE`/`PATCH`) + `router.refresh()`.
+  via `fetch` (`DELETE`/`PATCH`) + `router.refresh()`. Reusada TAMBÉM por `team-metas-section.tsx`
+  (com `canMutate={false}` fixo).
+- **`team-metas-section.tsx`** (`"use client"`) — `TeamMetasSection({ teamProjects,
+  selectedProjectId, goals })` (spec 022): seção "Metas de equipe", independente do fluxo de
+  metas PRÓPRIAS acima — some se `teamProjects.length === 0`. Seletor próprio (espelha
+  `ProjectSwitcher`, mas chama a Server Action `selectMetasTeamProject` de
+  `@/lib/goals/team-actions` — arquivo "use server" dedicado, NÃO `team-select.ts`, senão o
+  bundler do client arrasta `@/lib/teams`/Prisma pro browser — cookie `metas_team_project_id`,
+  NÃO usa `selected_project_id` do header) + `<MetasView canMutate={false}>` (sempre read-only,
+  independente do papel de quem vê — leitura de equipe nunca muta).
 
 ## O que NÃO vai aqui
 - **Sem acesso direto ao banco / ao service** — a página (Server Component) carrega via
-  `goals/service`; aqui só `fetch` na API.
+  `goals/service`/`@/lib/teams`; aqui só `fetch`/Server Actions.
 - **Sem regra de derivação** (progresso/status do pai, X→Y) — isso é `@/lib/goals/derive` (puro,
   testado por unit); os valores chegam prontos no `Goal`.
 - **Mutação só por admin** — `canMutate` esconde os controles para cliente (o servidor reforça).
+  Na seção de equipe, `canMutate` é **sempre `false`** — nem admin muta ali (é preview de leitura).

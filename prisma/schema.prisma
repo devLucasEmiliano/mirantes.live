@@ -27,6 +27,7 @@ model User {
   connection   GithubConnection? // conexão OAuth (token cifrado) — tabela lateral 1:1
   projects     Project[] // projetos de que este usuário é dono (spec 009)
   mcpTokens    McpToken[] // tokens pessoais do MCP (spec 019)
+  teamMemberships TeamMember[] // equipes de que este usuário participa (spec 022)
 
   @@map("users")
 }
@@ -112,11 +113,41 @@ model Project {
   goals           Goal[]
   goalBranchLinks GoalBranchLink[]
   goalCodeCounter GoalCodeCounter?
+  teamId          String?  @map("team_id") @db.Uuid // equipe com leitura compartilhada (spec 022); no máx. 1
+  team            Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@unique([userId, owner, repo])
   @@index([userId])
   @@index([isPublic])
+  @@index([teamId])
   @@map("projects")
+}
+
+/// Equipe (spec 022): agrupa usuários que compartilham LEITURA das metas de um projeto.
+/// Gerida só por admin. 1 projeto pertence a no máx. 1 equipe (Project.teamId).
+model Team {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime     @default(now()) @map("created_at")
+  members   TeamMember[]
+  projects  Project[]
+
+  @@map("teams")
+}
+
+/// Membro de uma equipe (N:N usuário↔equipe). Sem papel próprio dentro da equipe — o
+/// vínculo só concede LEITURA de metas; mutação segue exclusiva de role=admin (PRD §2).
+model TeamMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
 }
 
 /// Commit puxado do GitHub. Dedupe por (project, sha) no sync idempotente.

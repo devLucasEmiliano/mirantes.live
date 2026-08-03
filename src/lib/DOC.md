@@ -12,9 +12,9 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 - `github/` — integração GitHub (OAuth por usuário, client HTTP, mapeadores puros, sync idempotente, worker). Ver `github/DOC.md`.
 - `events/` — eventos da Timeline (mapeadores puros commit/run, formatação de datas, backfill). Ver `events/DOC.md`.
 - `projects/` — seleção de projeto do header + `ref.ts` (match puro de referência humana → projeto, spec 015). Ver `projects/DOC.md`.
-- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta **100% determinística** (keyword → branch → manual; LLM removido na spec 016). Único portão Postgres em `goals/service.ts`. Ver `goals/DOC.md`.
+- `goals/` — Metas (spec 013): hierarquia, X→Y, derivação de pai e atribuição automática commit→meta **100% determinística** (keyword → branch → manual; LLM removido na spec 016). Único portão Postgres em `goals/service.ts`. **Leitura ganhou o escopo de equipe** (spec 022, `goalReadWhere`). Ver `goals/DOC.md`.
 - `mcp/` — servidor **MCP** (stdio) de Metas (spec 013/015): expõe o service a ferramentas externas (Claude Code), operando no "projeto atual" (git remote) por ref/short code. Ver `mcp/DOC.md`.
-- Arquivos diretos nesta pasta (abaixo).
+- Arquivos diretos nesta pasta (abaixo), incluindo `teams.ts` (spec 022).
 
 ## Arquivos
 - **`env.ts`** — valida `process.env` com zod (`DATABASE_URL`, `REDIS_URL`,
@@ -70,6 +70,24 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
   RESUMO DA SEMANA. DTO = `TimelineEvent` via `toDTO` (`id` `String()`, `createdAt` ISO).
   Depende de `@/lib/db` e do `Scope` de `projects.ts`. (A escrita/emissão de eventos mora em
   `events/` e em `github/sync.ts`.)
+- **`teams.ts`** — serviço de **Equipes** (spec 022), único portão Postgres do domínio: grupo de
+  usuários com leitura compartilhada das metas de um projeto, admin-only. `listTeams` (com
+  membros/projetos resolvidos), `createTeam`, `deleteTeam` (delete físico — não é domínio
+  auditável), `addMember`/`removeMember`, `assignProject`/`unassignProject` (`UPDATE
+  project.teamId` — atribuir a uma 2ª equipe MOVE, cardinalidade 1 é garantida pela própria
+  natureza do UPDATE), `listAssignableUsers`/`listAssignableProjects` (p/ os `<select>` do
+  admin), `listTeamProjectIdsForUser`/`listTeamProjectsForUser` (usados por
+  `goals/service.goalReadWhere` e por `goals/team-select.ts`). Os `<select>` viraram busca na spec
+  023, mas as duas funções `listAssignable*` seguem iguais (a UI filtra no cliente).
+- **`teams-filter.ts`** — helpers **puros** dos pickers de Equipes (spec 023), consumidos pelos
+  Client Components `team-row.tsx`/`search-picker.tsx`: `normalize` (lower-case + NFD sem acento),
+  `filterUsers(users, memberIds, query)` (tira quem já é membro; casa nome OU email),
+  `filterProjects(projects, teamId, query)` (tira os JÁ desta equipe, mantém os de OUTRA — clicar
+  MOVE; casa `owner/repo`) e `teamNameOf(teamId, teams)` (label do badge `em {equipe}`).
+  **Mora fora de `teams.ts` de propósito:** aquele arquivo importa `@/lib/db` → `pg`, e um Client
+  Component importando de lá arrastaria o Prisma p/ o bundle do browser (`Module not found:
+  net/tls`). Pelo mesmo motivo **não** existe `src/lib/teams/`: `@/lib/teams` ficaria ambíguo na
+  resolução de módulo. Sem `@/lib/db`, sem React, sem `"use server"` — testável em unit puro.
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Helper de classe CSS.
 - **`types.ts`** — tipos de domínio do front-end (Goal, TimelineEvent, Service…). `Goal` foi
   **estendido aditivamente** (spec 013) com campos opcionais das metas reais: `shortCode`,
@@ -89,6 +107,9 @@ UI e os tipos/mock do front-end. É onde mora o acesso a dados — nunca nos com
 ## O que NÃO vai aqui
 - **Sem componentes React / JSX** — esta pasta é lógica de servidor e tipos.
 - **Sem `"use client"`** — `db.ts`/`redis.ts`/`auth/*` são exclusivamente servidor.
+- **Módulo importado por Client Component não pode tocar `@/lib/db`** — o `pg` vaza p/ o bundle do
+  browser. Helper puro consumido pelo cliente vira arquivo próprio (ex. `teams-filter.ts` ao lado
+  de `teams.ts`), nunca um export a mais no serviço que fala com o Postgres.
 - Segredos só via `env.ts` (nunca hardcoded, log ou resposta ao cliente).
 - Regras de negócio de metas/eventos/monitoramento entram em libs próprias nas suas specs,
   não aqui de forma genérica.
